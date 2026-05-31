@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { ok, created, serverError } from "@/lib/api";
 
 export async function GET() {
-  try { await requireUser(); return ok(await prisma.category.findMany({ orderBy: { sortOrder: "asc" } })); }
+  try { await requireUser(); return ok(await prisma.category.findMany({ where: { isActive: true }, orderBy: { sortOrder: "asc" } })); }
   catch (e) { return serverError(e); }
 }
 export async function POST(req: Request) {

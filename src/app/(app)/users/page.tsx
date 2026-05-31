@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { api } from "@/lib/fetcher";
 import { Card, Field, Input, Spinner } from "@/components/ui";
 
-type U = { id: string; name: string; email: string; role: string; isActive: boolean };
+type U = { id: string; name: string; email: string; role: string; area?: string | null; isActive: boolean };
 
 export default function UsersPage() {
   const { t } = useI18n();
@@ -15,7 +15,7 @@ export default function UsersPage() {
   const isAdmin = myRole === "ADMIN";
 
   const [users, setUsers] = useState<U[]>([]);
-  const [form, setForm] = useState({ name: "", email: "", password: "", role: "EMPLOYEE" });
+  const [form, setForm] = useState({ name: "", email: "", password: "", role: "EMPLOYEE", area: "" });
   const [editing, setEditing] = useState<U | null>(null);
   const [pw, setPw] = useState({ next: "", confirm: "" });
   const [error, setError] = useState("");
@@ -28,8 +28,8 @@ export default function UsersPage() {
   async function add() {
     setError("");
     try {
-      await api("/api/users", { method: "POST", body: JSON.stringify(form) });
-      setForm({ name: "", email: "", password: "", role: "EMPLOYEE" });
+      await api("/api/users", { method: "POST", body: JSON.stringify({ ...form, area: form.area || null }) });
+      setForm({ name: "", email: "", password: "", role: "EMPLOYEE", area: "" });
       load();
     } catch (e: any) { setError(e.message); }
   }
@@ -37,7 +37,7 @@ export default function UsersPage() {
   async function saveEdit() {
     if (!editing) return;
     setError("");
-    const body: any = { name: editing.name, email: editing.email, role: editing.role };
+    const body: any = { name: editing.name, email: editing.email, role: editing.role, area: editing.area || null };
     // Optional password reset.
     if (pw.next || pw.confirm) {
       if (pw.next.length < 8) { setError(t("passwordTooShort")); return; }
@@ -84,6 +84,15 @@ export default function UsersPage() {
               {roleOptions.map((r) => <option key={r} value={r}>{r}</option>)}
             </select>
           </Field>
+          {form.role === "EMPLOYEE" && (
+            <Field label={t("focusArea")}>
+              <select className="touch-input" value={form.area} onChange={(e) => setForm({ ...form, area: e.target.value })}>
+                <option value="">{t("noFocus")}</option>
+                <option value="KITCHEN">{t("kitchen")}</option>
+                <option value="FLOOR">{t("floor")}</option>
+              </select>
+            </Field>
+          )}
         </div>
         {!isAdmin && <p className="text-xs text-gray-400">{t("managerCreateEmployeeOnly")}</p>}
         {error && <p className="text-red-600 text-sm">{error}</p>}
@@ -130,6 +139,15 @@ export default function UsersPage() {
                 {(isAdmin ? ["EMPLOYEE", "MANAGER", "ADMIN"] : [editing.role]).map((r) => <option key={r} value={r}>{r}</option>)}
               </select>
             </Field>
+            {editing.role === "EMPLOYEE" && (
+              <Field label={t("focusArea")}>
+                <select className="touch-input" value={editing.area || ""} onChange={(e) => setEditing({ ...editing, area: e.target.value })}>
+                  <option value="">{t("noFocus")}</option>
+                  <option value="KITCHEN">{t("kitchen")}</option>
+                  <option value="FLOOR">{t("floor")}</option>
+                </select>
+              </Field>
+            )}
 
             <div className="border-t pt-3 space-y-2">
               <p className="text-sm font-medium text-gray-600">{t("resetPassword")}</p>

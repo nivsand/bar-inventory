@@ -1,6 +1,6 @@
 import { requireManager } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { serverError, badRequest } from "@/lib/api";
+import { ok, serverError, badRequest } from "@/lib/api";
 
 function toCsv(rows: Record<string, any>[]): string {
   if (rows.length === 0) return "";
@@ -43,6 +43,11 @@ export async function GET(req: Request, { params }: { params: { type: string } }
         rows = [...map.values()];
         break;
       }
+      case "deliveries": {
+        const d = await prisma.delivery.findMany({ include: { order: { include: { supplier: true } }, receivedBy: true, items: true }, orderBy: { receivedAt: "desc" }, take: 1000 });
+        rows = d.map((x) => ({ date: x.receivedAt.toISOString(), supplier: x.order?.supplier.nameEn || "—", status: x.status, items: x.items.length, shortage: x.hasShortage ? "yes" : "", receivedBy: x.receivedBy?.name }));
+        break;
+      }
       case "consumption": {
         const a = await prisma.inventoryAdjustment.findMany({ where: { source: { in: ["PREP_CONSUMPTION", "WASTE", "SALE"] } }, include: { item: true } });
         const map = new Map<string, { item: string; consumed: number }>();
@@ -55,6 +60,9 @@ export async function GET(req: Request, { params }: { params: { type: string } }
       }
       default: return badRequest("Unknown report type");
     }
+
+    // In-app tables fetch JSON; the export buttons fetch CSV (default).
+    if (format === "json") return ok({ rows });
 
     const csv = toCsv(rows);
     return new Response(csv, {

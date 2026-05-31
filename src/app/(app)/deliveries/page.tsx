@@ -17,16 +17,22 @@ const STATUS_TONE: Record<string, string> = {
 export default function DeliveriesPage() {
   const { t, name } = useI18n();
   const { data: session } = useSession();
-  const isManager = ["MANAGER", "ADMIN"].includes((session?.user as any)?.role);
+  const role = (session?.user as any)?.role;
+  const isManager = ["MANAGER", "ADMIN"].includes(role);
+  const isAdmin = role === "ADMIN";
 
   const [items, setItems] = useState<any[]>([]);
   const [deliveries, setDeliveries] = useState<any[]>([]);
   const [rows, setRows] = useState<Row[]>([]);
   const [reporting, setReporting] = useState(false);
   const [ocrText, setOcrText] = useState<string | null>(null);
+  const [receipt, setReceipt] = useState<string | null>(null); // data URL of the uploaded receipt image
   const [provider, setProvider] = useState<string>("");
+  const [confidence, setConfidence] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
+  const [viewImg, setViewImg] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string>("ALL");
 
   const load = () => Promise.all([api("/api/inventory"), api("/api/deliveries")]).then(([inv, d]) => { setItems(inv); setDeliveries(d); });
   useEffect(() => { load(); }, []);
@@ -44,10 +50,17 @@ export default function DeliveriesPage() {
   async function upload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]; if (!file) return;
     setUploading(true); setError("");
+    // Keep the image (as a data URL) so it can be saved with the report and viewed later.
+    if (file.type.startsWith("image/")) {
+      const reader = new FileReader();
+      reader.onload = () => setReceipt(typeof reader.result === "string" ? reader.result : null);
+      reader.readAsDataURL(file);
+    }
     const fd = new FormData(); fd.append("file", file);
     try {
       const res = await fetch("/api/deliveries/ocr", { method: "POST", body: fd }).then((r) => r.json());
-      setProvider(res.provider); setOcrText(res.extracted?.rawText ?? null); setReporting(true);
+      setProvider(res.provider); setConfidence(typeof res.extracted?.confidence === "number" ? res.extracted.confidence : null);
+      setOcrText(res.extracted?.rawText ?? null); setReporting(true);
       setRows(
         (res.extracted.items as any[]).map((it) => ({
           itemId: it.matchedItemId || "",
@@ -68,9 +81,15 @@ export default function DeliveriesPage() {
       .map((r) => ({ itemId: r.itemId, receivedQty: Number(r.receivedQty), unit: r.unit || "unit", isShort: r.isShort, note: r.note || null }));
     if (payload.length === 0) { setError(t("noData")); return; }
     try {
-      await api("/api/deliveries", { method: "POST", body: JSON.stringify({ items: payload, status: "SUBMITTED", ocrRaw: ocrText }) });
-      setRows([]); setReporting(false); setOcrText(null); load();
+      await api("/api/deliveries", { method: "POST", body: JSON.stringify({ items: payload, status: "SUBMITTED", ocrRaw: ocrText, documentUrl: receipt }) });
+      setRows([]); setReporting(false); setOcrText(null); setReceipt(null); load();
     } catch (e: any) { setError(e.message); }
+  }
+
+  async function deleteDelivery(id: string) {
+    if (!window.confirm(t("confirmDelete"))) return;
+    try { await api(`/api/deliveries/${id}`, { method: "DELETE" }); load(); }
+    catch (e: any) { alert(e.message); }
   }
 
   async function review(id: string, action: "APPROVE" | "REJECT") {
@@ -98,7 +117,17 @@ export default function DeliveriesPage() {
           <button className="btn-ghost" onClick={addRow}>+ {t("addProduct")}</button>
           {uploading && <Spinner />}
           {provider && <span className="text-xs text-gray-400">OCR: {provider}</span>}
+          {confidence !== null && (
+            <span className={`badge ${confidence >= 0.7 ? "bg-emerald-100 text-emerald-700" : confidence > 0 ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-500"}`}>
+              {t("confidence")}: {Math.round(confidence * 100)}%
+            </span>
+          )}
         </div>
+        {receipt && (
+          <button onClick={() => setViewImg(receipt)} className="block">
+            <img src={receipt} alt={t("receiptImage")} className="h-28 rounded-lg border object-cover" />
+          </button>
+        )}
 
         {reporting && rows.length > 0 && (
           <div className="overflow-x-auto">
@@ -172,14 +201,35 @@ export default function DeliveriesPage() {
 
       {/* History */}
       <section className="space-y-3">
-        <h2 className="font-semibold text-lg">{t("history")}</h2>
-        {deliveries.map((d) => (
-          <Card key={d.id} className="flex justify-between">
-            <div>
-              <span className="font-medium">{d.order ? name(d.order.supplier) : "—"}</span>
-              <span className="badge ms-2 bg-gray-100">{d.items.length} {t("item")}</span>
-              {d.hasShortage && <span className="badge ms-2 bg-red-100 text-red-700">{t("shortage")}</span>}
-              <p className="text-sm text-gray-400">{new Date(d.receivedAt).toLocaleString()} · {d.receivedBy?.name}</p>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-semibold text-lg">{t("history")}</h2>
+          <div className="flex flex-wrap gap-1">
+            {["ALL", "SUBMITTED", "APPROVED", "REJECTED"].map((s) => (
+              <button key={s} onClick={() => setStatusFilter(s)}
+                className={`rounded-lg px-2.5 py-1 text-xs font-medium ${statusFilter === s ? "bg-brand-600 text-white" : "bg-gray-100 text-gray-600"}`}>
+                {s === "ALL" ? t("all") : s === "SUBMITTED" ? t("statusSubmitted") : s === "APPROVED" ? t("statusApproved") : t("statusRejected")}
+              </button>
+            ))}
+          </div>
+        </div>
+        {deliveries.filter((d) => statusFilter === "ALL" || d.status === statusFilter).map((d) => (
+          <Card key={d.id} className="flex justify-between items-start gap-3">
+            <div className="flex gap-3">
+              {d.documentUrl && (
+                <button onClick={() => setViewImg(d.documentUrl)} className="shrink-0">
+                  <img src={d.documentUrl} alt={t("receiptImage")} className="h-14 w-14 rounded-lg border object-cover" />
+                </button>
+              )}
+              <div>
+                <span className="font-medium">{d.order ? name(d.order.supplier) : "—"}</span>
+                <span className="badge ms-2 bg-gray-100">{d.items.length} {t("item")}</span>
+                {d.hasShortage && <span className="badge ms-2 bg-red-100 text-red-700">{t("shortage")}</span>}
+                <p className="text-sm text-gray-400">{new Date(d.receivedAt).toLocaleString()} · {d.receivedBy?.name}</p>
+                <div className="flex gap-3 mt-1">
+                  {d.documentUrl && <button className="text-brand-600 text-sm" onClick={() => setViewImg(d.documentUrl)}>{t("viewImage")}</button>}
+                  {isAdmin && <button className="text-red-600 text-sm" onClick={() => deleteDelivery(d.id)}>{t("delete")}</button>}
+                </div>
+              </div>
             </div>
             <span className={`badge ${STATUS_TONE[d.status] || "bg-gray-100"}`}>
               {d.status === "SUBMITTED" ? t("statusSubmitted") : d.status === "APPROVED" ? t("statusApproved") : d.status === "REJECTED" ? t("statusRejected") : t("draft")}
@@ -187,6 +237,12 @@ export default function DeliveriesPage() {
           </Card>
         ))}
       </section>
+
+      {viewImg && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-40 p-4" onClick={() => setViewImg(null)}>
+          <img src={viewImg} alt={t("receiptImage")} className="max-h-[90vh] max-w-full rounded-lg" onClick={(e) => e.stopPropagation()} />
+        </div>
+      )}
     </div>
   );
 }

@@ -12,6 +12,7 @@ const patchSchema = z.object({
   email: z.string().email().optional(),
   password: z.string().min(MIN_PASSWORD_LENGTH).optional(),
   role: z.enum(["EMPLOYEE", "MANAGER", "ADMIN"]).optional(),
+  area: z.enum(["KITCHEN", "FLOOR"]).nullable().optional(),
   isActive: z.boolean().optional(),
 });
 
@@ -42,6 +43,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     if (body.name !== undefined) data.name = body.name;
     if (body.email !== undefined) data.email = body.email;
     if (body.role !== undefined) data.role = body.role;
+    if (body.area !== undefined) data.area = body.area;
     if (body.isActive !== undefined) data.isActive = body.isActive;
     if (body.password) data.passwordHash = await bcrypt.hash(body.password, 10);
 

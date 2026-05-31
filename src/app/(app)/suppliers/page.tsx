@@ -20,6 +20,8 @@ export default function SuppliersPage() {
   const [loading, setLoading] = useState(true);
   const [showArchived, setShowArchived] = useState(false);
   const [archived, setArchived] = useState<any[]>([]);
+  const [search, setSearch] = useState("");
+  const [sel, setSel] = useState<Set<string>>(new Set());
   const load = () => api("/api/suppliers").then((d) => { setSups(d); setLoading(false); });
   const loadArchived = () => api("/api/suppliers?archived=1").then(setArchived);
   useEffect(() => { load(); }, []);
@@ -51,8 +53,16 @@ export default function SuppliersPage() {
     loadArchived(); load();
   }
 
+  function toggleSel(id: string) { const n = new Set(sel); n.has(id) ? n.delete(id) : n.add(id); setSel(n); }
+  async function bulkArchive() {
+    if (!window.confirm(t("confirmArchiveSupplier"))) return;
+    await api("/api/suppliers/bulk", { method: "POST", body: JSON.stringify({ action: "archive", ids: [...sel] }) });
+    setSel(new Set()); load(); if (showArchived) loadArchived();
+  }
+
   if (loading) return <div className="flex justify-center py-20"><Spinner /></div>;
   const wdLabel = (d: number) => fmtDays([d], locale);
+  const shown = sups.filter((s) => !search || name(s).toLowerCase().includes(search.toLowerCase()) || s.nameHe.includes(search) || s.nameEn.toLowerCase().includes(search.toLowerCase()) || (s.contactPerson || "").toLowerCase().includes(search.toLowerCase()));
 
   return (
     <div className="space-y-4">
@@ -80,13 +90,27 @@ export default function SuppliersPage() {
         </Card>
       )}
 
+      <Input placeholder={t("search")} value={search} onChange={(e) => setSearch(e.target.value)} />
+
+      {sel.size > 0 && (
+        <div className="flex flex-wrap items-center gap-2 bg-brand-50 border border-brand-200 rounded-xl p-2">
+          <span className="text-sm font-medium">{sel.size} {t("selected")}</span>
+          <button className="btn-danger text-xs" onClick={bulkArchive}>{t("bulkArchive")}</button>
+          <button className="btn-ghost text-xs" onClick={() => setSel(new Set())}>{t("cancel")}</button>
+        </div>
+      )}
+
       <div className="grid md:grid-cols-2 gap-3">
-        {sups.map((s) => (
+        {shown.map((s) => (
           <Card key={s.id}>
-            <div className="flex justify-between items-start">
-              <div>
-                <h3 className="font-semibold">{name(s)}</h3>
-                <p className="text-sm text-gray-500">{s.contactPerson} {s.phone && `· ${s.phone}`}</p>
+            <div className="flex justify-between items-start gap-2">
+              <div className="flex gap-2">
+                <input type="checkbox" className="mt-1.5" checked={sel.has(s.id)} onChange={() => toggleSel(s.id)} />
+                <div>
+                  <h3 className="font-semibold">{name(s)}</h3>
+                  <p className="text-sm text-gray-500">{s.contactPerson} {s.phone && `· ${s.phone}`}</p>
+                  {s.email && <p className="text-xs text-gray-400">✉ {s.email} {s.whatsapp && `· wa ${s.whatsapp}`}</p>}
+                </div>
               </div>
               <button className="text-brand-600 text-sm" onClick={() => setEditing(s)}>{t("edit")}</button>
             </div>

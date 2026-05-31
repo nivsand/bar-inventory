@@ -22,6 +22,10 @@ export type OrderingItemInput = {
   avgDailyUsage: number;
   packSize?: number | null;
   orderMultiple?: number | null;
+  // Ordering unit (e.g. a "box" containing 10 cakes)
+  unitsPerOrderUnit?: number | null;
+  orderUnitNameHe?: string | null;
+  orderUnitNameEn?: string | null;
   supplierId?: string | null;
 };
 
@@ -39,7 +43,12 @@ export type OrderSuggestion = {
   currentQty: number;
   minQty: number;
   parQty: number;
-  suggestedQty: number;
+  suggestedQty: number;            // in base units (after rounding to order unit)
+  // Order-unit breakdown (e.g. 1 box of 10)
+  orderUnitQty: number | null;     // how many order units to buy
+  unitsPerOrderUnit: number | null;
+  orderUnitNameHe: string | null;
+  orderUnitNameEn: string | null;
   daysUntilDelivery: number;
   projectedAtDelivery: number;
   reasonKey: ReasonKey;
@@ -61,9 +70,13 @@ function nextWeekdayDate(from: Date, weekdays: number[], minOffset = 0): Date | 
   return null;
 }
 
-/** Round an order quantity up to the supplier's pack size / order multiple. */
+/**
+ * Round an order quantity (in base units) up to a valid quantity. We round to
+ * the strongest constraint available: the order unit (units per box), else the
+ * order multiple, else the pack size; otherwise to 1 decimal.
+ */
 export function roundToPack(qty: number, item: OrderingItemInput): number {
-  const step = item.orderMultiple || item.packSize || 0;
+  const step = item.unitsPerOrderUnit || item.orderMultiple || item.packSize || 0;
   if (step && step > 0) return Math.ceil(qty / step) * step;
   // default: round up to 1 decimal
   return Math.ceil(qty * 10) / 10;
@@ -107,16 +120,31 @@ export function suggestForItem(
     reasonKey = "BELOW_PAR";
   }
 
+  const finalQty = Math.max(0, suggestedQty);
+  const upo = item.unitsPerOrderUnit && item.unitsPerOrderUnit > 0 ? item.unitsPerOrderUnit : null;
+  const orderUnitQty = upo ? Math.ceil(finalQty / upo) : null;
+
   return {
     itemId: item.id,
     nameHe: item.nameHe, nameEn: item.nameEn, unit: item.unit,
     currentQty: item.currentQty, minQty: item.minQty, parQty: item.parQty,
-    suggestedQty: Math.max(0, suggestedQty),
+    suggestedQty: finalQty,
+    orderUnitQty,
+    unitsPerOrderUnit: upo,
+    orderUnitNameHe: item.orderUnitNameHe ?? null,
+    orderUnitNameEn: item.orderUnitNameEn ?? null,
     daysUntilDelivery,
     projectedAtDelivery: Math.round(projectedAtDelivery * 100) / 100,
     reasonKey,
     reason: explain(reasonKey, item, daysUntilDelivery, projectedAtDelivery),
   };
+}
+
+/** Format an order-unit summary, e.g. "1 box (10 kg)". Returns null if no order unit. */
+export function formatOrderUnit(s: OrderSuggestion, lang: "he" | "en"): string | null {
+  if (!s.orderUnitQty || !s.unitsPerOrderUnit) return null;
+  const unitName = (lang === "en" ? s.orderUnitNameEn : s.orderUnitNameHe) || (lang === "en" ? "unit" : "יחידה");
+  return `${s.orderUnitQty} ${unitName} (${s.suggestedQty} ${s.unit})`;
 }
 
 function explain(key: ReasonKey, item: OrderingItemInput, days: number, projected: number): string {

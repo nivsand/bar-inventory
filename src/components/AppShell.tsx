@@ -6,16 +6,19 @@ import { useI18n } from "@/lib/i18n/I18nProvider";
 import { TKey } from "@/lib/i18n/translations";
 import clsx from "clsx";
 
-const NAV: { href: string; key: TKey; managerOnly?: boolean }[] = [
+const NAV: { href: string; key: TKey; managerOnly?: boolean; adminOnly?: boolean }[] = [
   { href: "/dashboard", key: "dashboard" },
   { href: "/count", key: "dailyCount" },
   { href: "/prep", key: "prep" },
   { href: "/inventory", key: "inventory" },
+  { href: "/recipes", key: "recipes", managerOnly: true },
+  { href: "/categories", key: "categories", managerOnly: true },
   { href: "/orders", key: "orders", managerOnly: true },
   { href: "/deliveries", key: "deliveries" },
   { href: "/suppliers", key: "suppliers", managerOnly: true },
   { href: "/waste", key: "waste" },
   { href: "/reports", key: "reports", managerOnly: true },
+  { href: "/audit", key: "audit", adminOnly: true },
   { href: "/users", key: "users", managerOnly: true },
   { href: "/account", key: "account" },
 ];
@@ -26,7 +29,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const role = (session?.user as any)?.role;
   const isManager = role === "MANAGER" || role === "ADMIN";
-  const items = NAV.filter((n) => !n.managerOnly || isManager);
+  const isAdmin = role === "ADMIN";
+  const items = NAV.filter((n) => (!n.managerOnly || isManager) && (!n.adminOnly || isAdmin));
 
   // Sign out without redirect, then navigate relative to the CURRENT origin.
   // This stays correct on any port / preview / production URL and never depends

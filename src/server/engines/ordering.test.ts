@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { suggestForItem, roundToPack, buildSuggestions, OrderingItemInput, SupplierSchedule } from "./ordering";
+import { suggestForItem, roundToPack, buildSuggestions, formatOrderUnit, OrderingItemInput, SupplierSchedule } from "./ordering";
 
 const base: OrderingItemInput = {
   id: "avocado", nameHe: "אבוקדו", nameEn: "Avocado", unit: "kg",
@@ -36,6 +36,25 @@ test("buildSuggestions filters out items that don't need ordering", () => {
   const out = buildSuggestions(items, sched, new Date());
   assert.equal(out.length, 1);
   assert.equal(out[0].itemId, "avocado");
+});
+
+test("rounds up to order units and reports boxes (1 box of 10)", () => {
+  // small shortfall (need ~2), sold in boxes of 10 -> order 1 box (10)
+  const cake: OrderingItemInput = {
+    id: "cake", nameHe: "עוגה", nameEn: "Cake", unit: "unit",
+    currentQty: 5, minQty: 6, parQty: 7, avgDailyUsage: 0,
+    unitsPerOrderUnit: 10, orderUnitNameHe: "קופסה", orderUnitNameEn: "box",
+  };
+  const s = suggestForItem(cake, new Date());
+  assert.equal(s.suggestedQty, 10, "rounds base qty up to a full box");
+  assert.equal(s.orderUnitQty, 1, "one box");
+  assert.equal(formatOrderUnit(s, "en"), "1 box (10 unit)");
+  assert.equal(formatOrderUnit(s, "he"), "1 קופסה (10 unit)");
+});
+
+test("formatOrderUnit returns null when no order unit configured", () => {
+  const s = suggestForItem(base, new Date());
+  assert.equal(formatOrderUnit(s, "en"), null);
 });
 
 test("prep-driven extra demand pushes an otherwise-ok item into ordering", () => {

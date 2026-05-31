@@ -11,6 +11,7 @@ export default function CountPage() {
   const { data: session } = useSession();
   const isManager = ["MANAGER", "ADMIN"].includes((session?.user as any)?.role);
   const [items, setItems] = useState<any[]>([]);
+  const [area, setArea] = useState<"KITCHEN" | "FLOOR">("KITCHEN");
   const [values, setValues] = useState<Record<string, string>>({});
   const [search, setSearch] = useState("");
   const [countId, setCountId] = useState<string | null>(null);
@@ -23,10 +24,11 @@ export default function CountPage() {
   const loadPending = () =>
     api("/api/counts").then((cs) => setPending(cs.filter((c: any) => c.status === "SUBMITTED")));
 
+  // Only count-enabled items for the selected area appear in the count.
   useEffect(() => {
-    api("/api/inventory").then(setItems);
-    loadPending();
-  }, []);
+    api(`/api/inventory?inCount=1&area=${area}`).then(setItems);
+  }, [area]);
+  useEffect(() => { loadPending(); }, []);
 
   async function start() {
     const c = await api("/api/counts", { method: "POST", body: JSON.stringify({}) });
@@ -76,7 +78,17 @@ export default function CountPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold">{t("dailyCount")}</h1>
+      <div className="flex items-center justify-between gap-2">
+        <h1 className="text-2xl font-bold">{t("dailyCount")}</h1>
+        <div className="inline-flex rounded-xl bg-gray-100 p-1">
+          {(["KITCHEN", "FLOOR"] as const).map((a) => (
+            <button key={a} onClick={() => setArea(a)}
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium ${area === a ? "bg-white shadow text-brand-700" : "text-gray-500"}`}>
+              {t(a === "KITCHEN" ? "kitchen" : "floor")}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {isManager && pending.length > 0 && (
         <Card>

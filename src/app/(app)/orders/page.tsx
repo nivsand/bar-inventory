@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n/I18nProvider";
+import { useSession } from "next-auth/react";
 import { api } from "@/lib/fetcher";
 import { Card, Spinner } from "@/components/ui";
 
@@ -10,24 +11,59 @@ const STATUS_TONE: Record<string, string> = {
   MISSING_ITEMS: "bg-red-100 text-red-800", PROBLEM: "bg-red-100 text-red-800", CANCELLED: "bg-gray-100 text-gray-600",
 };
 
-function buildMessage(supplierName: string, items: any[], nameOf: (i: any) => string) {
-  const lines = items.map((i) => `• ${nameOf(i)}: ${i.orderedQty} ${i.unit}`);
-  return `שלום ${supplierName},\nנשמח להזמין:\n${lines.join("\n")}\nתודה!`;
+type Named = { nameHe?: string | null; nameEn?: string | null };
+type MsgItem = Named & { orderedQty: number; unit: string; unitsPerOrderUnit?: number | null; orderUnitNameHe?: string | null; orderUnitNameEn?: string | null };
+
+// Format a quantity for a line: if the item is sold in order units (e.g. boxes
+// of 10), show "1 box (10 cakes)"; otherwise just the base quantity.
+function qtyLabel(lang: string, i: MsgItem): string {
+  const upo = i.unitsPerOrderUnit && i.unitsPerOrderUnit > 0 ? i.unitsPerOrderUnit : null;
+  if (upo) {
+    const boxes = Math.ceil(i.orderedQty / upo);
+    const unitName = (lang === "en" ? i.orderUnitNameEn : i.orderUnitNameHe) || (lang === "en" ? "unit" : "יחידה");
+    return `${boxes} ${unitName} (${i.orderedQty} ${i.unit})`;
+  }
+  return `${i.orderedQty} ${i.unit}`;
+}
+
+// Hebrew by default; English only when the UI language is English. Names are
+// taken in the message language (not the relation's UI locale) so a Hebrew
+// message uses Hebrew names even if an English UI generated it.
+function buildMessage(lang: string, supplier: Named, items: MsgItem[]) {
+  const pick = (e: Named) => (lang === "en" ? e.nameEn || e.nameHe : e.nameHe || e.nameEn) || "";
+  const lines = items.map((i) => `• ${pick(i)}: ${qtyLabel(lang, i)}`).join("\n");
+  if (lang === "en") return `Hi ${pick(supplier)},\nWe'd like to order:\n${lines}\nThank you!`;
+  return `שלום ${pick(supplier)},\nנשמח להזמין:\n${lines}\nתודה רבה!`;
+}
+
+function mapItems(items: any[]): MsgItem[] {
+  return items.map((oi) => ({
+    nameHe: oi.item.nameHe, nameEn: oi.item.nameEn, orderedQty: oi.orderedQty, unit: oi.unit,
+    unitsPerOrderUnit: oi.item.unitsPerOrderUnit, orderUnitNameHe: oi.item.orderUnitNameHe, orderUnitNameEn: oi.item.orderUnitNameEn,
+  }));
 }
 
 export default function OrdersPage() {
-  const { t, name } = useI18n();
+  const { t, name, locale } = useI18n();
+  const { data: session } = useSession();
+  const isManager = ["MANAGER", "ADMIN"].includes((session?.user as any)?.role);
+
   const [sugg, setSugg] = useState<any>(null);
   const [orders, setOrders] = useState<any[]>([]);
+  const [inventory, setInventory] = useState<any[]>([]);
   const [qty, setQty] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState<{ supplier: any; text: string } | null>(null);
+  const [addTo, setAddTo] = useState<string | null>(null);
+  const [addForm, setAddForm] = useState<{ itemId: string; qty: string }>({ itemId: "", qty: "" });
 
-  const load = () => Promise.all([api("/api/orders/suggestions"), api("/api/orders")])
-    .then(([s, o]) => { setSugg(s); setOrders(o);
+  const load = () => Promise.all([api("/api/orders/suggestions"), api("/api/orders"), api("/api/inventory")])
+    .then(([s, o, inv]) => {
+      setSugg(s); setOrders(o); setInventory(inv);
       const q: Record<string, number> = {};
       s.bySupplier.forEach((g: any) => g.items.forEach((it: any) => { q[it.itemId] = it.suggestedQty; }));
-      setQty(q); setLoading(false); });
+      setQty(q); setLoading(false);
+    });
   useEffect(() => { load(); }, []);
 
   async function createOrder(group: any) {
@@ -36,15 +72,32 @@ export default function OrdersPage() {
       currentQty: it.currentQty, minQty: it.minQty, reason: it.reason, unit: it.unit,
     }));
     const order = await api("/api/orders", { method: "POST", body: JSON.stringify({ supplierId: group.supplier.id, items, channel: group.supplier.orderingMethod }) });
-    const text = buildMessage(name(group.supplier), order.items.map((oi: any) => ({ ...oi, ...oi.item })), name);
+    const text = buildMessage(locale, group.supplier, mapItems(order.items));
     await api(`/api/orders/${order.id}`, { method: "PATCH", body: JSON.stringify({ messageBody: text, status: "ORDERED" }) });
     setMsg({ supplier: group.supplier, text });
     load();
   }
 
+  function openMessage(o: any) {
+    const text = o.messageBody || buildMessage(locale, o.supplier, mapItems(o.items));
+    setMsg({ supplier: o.supplier, text });
+  }
+
   async function setStatus(id: string, status: string) {
     await api(`/api/orders/${id}`, { method: "PATCH", body: JSON.stringify({ status }) });
     load();
+  }
+
+  async function addItem(orderId: string) {
+    if (!addForm.itemId || !addForm.qty) return;
+    await api(`/api/orders/${orderId}`, { method: "PATCH", body: JSON.stringify({ addItems: [{ itemId: addForm.itemId, orderedQty: Number(addForm.qty) }] }) });
+    setAddTo(null); setAddForm({ itemId: "", qty: "" }); load();
+  }
+
+  async function deleteOrder(id: string) {
+    if (!window.confirm(t("confirmDeleteOrder"))) return;
+    try { await api(`/api/orders/${id}`, { method: "DELETE" }); load(); }
+    catch (e: any) { alert(e.message); }
   }
 
   if (loading) return <div className="flex justify-center py-20"><Spinner /></div>;
@@ -76,6 +129,11 @@ export default function OrdersPage() {
                     <td className="p-2 text-center">
                       <input className="touch-input h-10 w-20 text-center" type="number"
                         value={qty[it.itemId] ?? it.suggestedQty} onChange={(e) => setQty((q) => ({ ...q, [it.itemId]: Number(e.target.value) }))} />
+                      {it.orderUnitQty && it.unitsPerOrderUnit ? (
+                        <div className="text-[11px] text-brand-700 mt-0.5">
+                          {Math.ceil((qty[it.itemId] ?? it.suggestedQty) / it.unitsPerOrderUnit)} {(locale === "en" ? it.orderUnitNameEn : it.orderUnitNameHe) || ""}
+                        </div>
+                      ) : null}
                     </td>
                     <td className="p-2 text-xs text-gray-500">{it.reason}</td>
                   </tr>
@@ -88,32 +146,58 @@ export default function OrdersPage() {
 
       <section className="space-y-3">
         <h2 className="font-semibold text-lg">{t("openOrders")} · {t("history")}</h2>
-        {orders.map((o) => (
-          <Card key={o.id}>
-            <div className="flex justify-between items-center">
-              <div>
-                <span className="font-semibold">{name(o.supplier)}</span>
-                <span className={`badge ms-2 ${STATUS_TONE[o.status]}`}>{o.status}</span>
-                <p className="text-sm text-gray-400">{new Date(o.createdAt).toLocaleString()} · {o.items.length} {t("item")}</p>
+        {orders.map((o) => {
+          const editable = o.status !== "CANCELLED" && o.status !== "ARRIVED";
+          return (
+            <Card key={o.id}>
+              <div className="flex justify-between items-center gap-2">
+                <div>
+                  <span className="font-semibold">{name(o.supplier)}</span>
+                  <span className={`badge ms-2 ${STATUS_TONE[o.status]}`}>{o.status}</span>
+                  <p className="text-sm text-gray-400">{new Date(o.createdAt).toLocaleString()} · {o.items.length} {t("item")}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <select className="touch-input h-10 w-auto text-sm" value={o.status} onChange={(e) => setStatus(o.id, e.target.value)}>
+                    {Object.keys(STATUS_TONE).map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                  {isManager && <button className="text-red-600 text-sm" onClick={() => deleteOrder(o.id)}>{t("delete")}</button>}
+                </div>
               </div>
-              <select className="touch-input h-10 w-auto text-sm" value={o.status} onChange={(e) => setStatus(o.id, e.target.value)}>
-                {Object.keys(STATUS_TONE).map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-            {o.messageBody && (
-              <details className="mt-2"><summary className="text-brand-600 text-sm cursor-pointer">{t("copyMessage")}</summary>
-                <pre className="bg-gray-50 rounded-lg p-3 text-xs whitespace-pre-wrap mt-2">{o.messageBody}</pre>
-              </details>
-            )}
-          </Card>
-        ))}
+
+              <ul className="mt-2 text-sm text-gray-600">
+                {o.items.map((oi: any) => (
+                  <li key={oi.id} className="flex justify-between"><span>{name(oi.item)}</span><span>{oi.orderedQty} {oi.unit}</span></li>
+                ))}
+              </ul>
+
+              <div className="flex flex-wrap gap-2 mt-2 items-center">
+                <button className="text-brand-600 text-sm" onClick={() => openMessage(o)}>{t("copyMessage")}</button>
+                {isManager && editable && (
+                  addTo === o.id ? (
+                    <span className="flex flex-wrap gap-2 items-center">
+                      <select className="touch-input h-10 w-auto text-sm" value={addForm.itemId} onChange={(e) => setAddForm({ ...addForm, itemId: e.target.value })}>
+                        <option value="">—</option>
+                        {inventory.map((i) => <option key={i.id} value={i.id}>{name(i)}</option>)}
+                      </select>
+                      <input className="touch-input h-10 w-20 text-center" type="number" placeholder={t("quantity")} value={addForm.qty} onChange={(e) => setAddForm({ ...addForm, qty: e.target.value })} />
+                      <button className="btn-primary text-sm" onClick={() => addItem(o.id)} disabled={!addForm.itemId || !addForm.qty}>{t("add")}</button>
+                      <button className="btn-ghost text-sm" onClick={() => { setAddTo(null); setAddForm({ itemId: "", qty: "" }); }}>{t("cancel")}</button>
+                    </span>
+                  ) : (
+                    <button className="btn-ghost text-sm" onClick={() => { setAddTo(o.id); setAddForm({ itemId: "", qty: "" }); }}>+ {t("addProduct")}</button>
+                  )
+                )}
+              </div>
+            </Card>
+          );
+        })}
       </section>
 
       {msg && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-30 p-4" onClick={() => setMsg(null)}>
           <div className="bg-white rounded-2xl w-full max-w-lg p-5 space-y-3" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-xl font-bold">{name(msg.supplier)}</h2>
-            <textarea className="w-full h-40 border rounded-xl p-3 text-sm" defaultValue={msg.text} id="ordermsg" />
+            <textarea className="w-full h-40 border rounded-xl p-3 text-sm" defaultValue={msg.text} id="ordermsg" dir="auto" />
             <div className="flex gap-2 flex-wrap">
               {msg.supplier.whatsapp && (
                 <a className="btn-primary" target="_blank" rel="noreferrer"

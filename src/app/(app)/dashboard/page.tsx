@@ -24,7 +24,26 @@ export default function Dashboard() {
   const c = data.counts;
 
   const Greeting = (
-    <h1 className="text-2xl font-bold">{t("hi")}, {data.user?.name}</h1>
+    <div className="flex items-center gap-2 flex-wrap">
+      <h1 className="text-2xl font-bold">{t("hi")}, {data.user?.name}</h1>
+      {data.user?.area && (
+        <span className="badge bg-brand-100 text-brand-700">{t(data.user.area === "KITCHEN" ? "kitchen" : "floor")}</span>
+      )}
+    </div>
+  );
+
+  const Alerts = (
+    (c.lowStock || c.pendingDeliveries || c.pendingApprovals || c.overduePrep) ? (
+      <Card className="border-amber-200">
+        <h2 className="font-semibold mb-2 text-amber-800">{t("alerts")}</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+          {c.lowStock > 0 && <Link href="/inventory" className="rounded-lg bg-amber-50 p-2"><b>{c.lowStock}</b> · {t("lowStock")}</Link>}
+          {c.pendingDeliveries > 0 && <Link href="/deliveries" className="rounded-lg bg-amber-50 p-2"><b>{c.pendingDeliveries}</b> · {t("pendingReports")}</Link>}
+          {c.pendingApprovals > 0 && <Link href="/count" className="rounded-lg bg-amber-50 p-2"><b>{c.pendingApprovals}</b> · {t("pendingApprovals")}</Link>}
+          {c.overduePrep > 0 && <Link href="/prep" className="rounded-lg bg-red-50 p-2"><b>{c.overduePrep}</b> · {t("overduePrep")}</Link>}
+        </div>
+      </Card>
+    ) : null
   );
 
   const countStatusText = data.todayCount
@@ -38,6 +57,9 @@ export default function Dashboard() {
     return (
       <div className="space-y-6">
         {Greeting}
+        {data.counts.overduePrep > 0 && (
+          <Card className="border-red-200"><p className="text-red-700 text-sm font-medium">⚠ {data.counts.overduePrep} {t("overduePrep")}</p></Card>
+        )}
 
         <section>
           <h2 className="font-semibold mb-2">{t("quickActions")}</h2>
@@ -90,6 +112,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       {Greeting}
+      {Alerts}
 
       <section>
         <h2 className="font-semibold mb-2">{t("todaysActions")}</h2>

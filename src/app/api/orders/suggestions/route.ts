@@ -40,6 +40,7 @@ export async function GET() {
       id: i.id, nameHe: i.nameHe, nameEn: i.nameEn, unit: i.unit,
       currentQty: i.currentQty, minQty: i.minQty, parQty: i.parQty, avgDailyUsage: i.avgDailyUsage,
       packSize: i.packSize, orderMultiple: i.orderMultiple, supplierId: i.supplierId,
+      unitsPerOrderUnit: i.unitsPerOrderUnit, orderUnitNameHe: i.orderUnitNameHe, orderUnitNameEn: i.orderUnitNameEn,
     }));
 
     const suggestions = buildSuggestions(inputs, scheduleBySupplier, today, extraDemand);

@@ -9,6 +9,8 @@ export async function GET(req: Request) {
     await requireUser();
     const { searchParams } = new URL(req.url);
     const kind = searchParams.get("kind") || undefined;
+    const area = searchParams.get("area") || undefined;       // KITCHEN | FLOOR
+    const inCount = searchParams.get("inCount") === "1";        // only count-enabled items
     const archived = searchParams.get("archived") === "1";
 
     // Archived (soft-deleted) items are manager/admin-only and never appear in
@@ -24,9 +26,14 @@ export async function GET(req: Request) {
     }
 
     const items = await prisma.inventoryItem.findMany({
-      where: { isActive: true, ...(kind ? { kind: kind as any } : {}) },
+      where: {
+        isActive: true,
+        ...(kind ? { kind: kind as any } : {}),
+        ...(area ? { area: area as any } : {}),
+        ...(inCount ? { inCount: true } : {}),
+      },
       include: { category: true, supplier: true },
-      orderBy: [{ kind: "asc" }, { nameEn: "asc" }],
+      orderBy: [{ area: "asc" }, { kind: "asc" }, { nameEn: "asc" }],
     });
     return ok(items);
   } catch (e) { return serverError(e); }
@@ -35,10 +42,14 @@ export async function GET(req: Request) {
 const schema = z.object({
   nameHe: z.string().min(1), nameEn: z.string().min(1), unit: z.string().min(1),
   kind: z.enum(["RAW", "PREP"]).default("RAW"),
+  area: z.enum(["KITCHEN", "FLOOR"]).default("KITCHEN"),
+  inCount: z.boolean().default(true),
   categoryId: z.string().nullable().optional(), supplierId: z.string().nullable().optional(),
-  currentQty: z.number().default(0), minQty: z.number().default(0), parQty: z.number().default(0),
-  avgDailyUsage: z.number().default(0), packSize: z.number().nullable().optional(),
-  orderMultiple: z.number().nullable().optional(), shelfLifeDays: z.number().nullable().optional(),
+  currentQty: z.coerce.number().default(0), minQty: z.coerce.number().default(0), parQty: z.coerce.number().default(0),
+  avgDailyUsage: z.coerce.number().default(0), packSize: z.coerce.number().nullable().optional(),
+  orderMultiple: z.coerce.number().nullable().optional(), shelfLifeDays: z.coerce.number().nullable().optional(),
+  orderUnitNameHe: z.string().nullable().optional(), orderUnitNameEn: z.string().nullable().optional(),
+  unitsPerOrderUnit: z.coerce.number().nullable().optional(),
   notes: z.string().nullable().optional(),
 });
 

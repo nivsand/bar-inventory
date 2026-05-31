@@ -11,7 +11,8 @@ export async function GET() {
     const dow = today.getDay();
     const dayStart = startOfDay(today), dayEnd = endOfDay(today);
 
-    const [items, suppliers, openOrders, pendingCounts, todayCount, openPrepTasks, pendingDeliveries] = await Promise.all([
+    const [dbUser, items, suppliers, openOrders, pendingCounts, todayCount, openPrepTasks, pendingDeliveries] = await Promise.all([
+      prisma.user.findUnique({ where: { id: user.id }, select: { area: true } }),
       prisma.inventoryItem.findMany({ where: { isActive: true }, include: { supplier: true } }),
       prisma.supplier.findMany({ where: { isActive: true } }),
       prisma.order.findMany({
@@ -33,18 +34,25 @@ export async function GET() {
     const ordersDueToday = suppliers.filter((s) => s.orderDeadlineDays.includes(dow));
     const deliveriesToday = suppliers.filter((s) => s.deliveryDays.includes(dow));
 
+    const area = dbUser?.area ?? null;
+    // Overdue prep = planned/in-progress tasks whose due date has passed.
+    const overduePrep = openPrepTasks.filter((tk) => tk.dueDate && new Date(tk.dueDate) < dayStart && tk.status !== "DONE");
+    // Employees with a focus area only see that area's prep tasks.
+    const prepForUser = (!manager && area) ? openPrepTasks.filter((tk) => (tk.prepItem.item.area || "KITCHEN") === area) : openPrepTasks;
+
     return ok({
-      user: { name: user.name, role: user.role },
+      user: { name: user.name, role: user.role, area },
       isManager: manager,
       counts: {
         lowStock: lowStock.length, critical: critical.length,
         openOrders: openOrders.length, pendingApprovals: pendingCounts.length,
         ordersDueToday: ordersDueToday.length, deliveriesToday: deliveriesToday.length,
-        prepTasks: openPrepTasks.length, pendingDeliveries: pendingDeliveries.length,
+        prepTasks: prepForUser.length, pendingDeliveries: pendingDeliveries.length,
+        overduePrep: overduePrep.length,
       },
       todayCount: todayCount ? { id: todayCount.id, status: todayCount.status, countedBy: todayCount.countedBy?.name } : null,
       lowStock, critical, openOrders, pendingCounts, ordersDueToday, deliveriesToday,
-      prepTasks: openPrepTasks, pendingDeliveries,
+      prepTasks: prepForUser, pendingDeliveries, overduePrep,
     });
   } catch (e) {
     return serverError(e);

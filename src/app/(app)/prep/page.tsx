@@ -50,7 +50,7 @@ export default function PrepPage() {
                 <p className="text-sm text-gray-500">{t("current")}: {s.currentQty} → {t("par")}: {s.parQty} {s.unit}</p>
                 <p className="text-brand-700 font-medium mt-1">{t("prepare")}: {s.produceQty} {s.unit}</p>
               </div>
-              <button className="btn-primary text-sm" onClick={() => createTask(s)} disabled={!s.ingredientsOk} title={s.ingredientsOk ? "" : t("insufficient")}>
+              <button className="btn-primary text-sm" onClick={() => createTask(s)}>
                 + {t("prepTasks")}
               </button>
             </div>
@@ -64,7 +64,7 @@ export default function PrepPage() {
                   </li>
                 ))}
               </ul>
-              {!s.ingredientsOk && <p className="text-red-600 text-xs mt-2">⚠ {t("insufficient")} — {t("orders")}</p>}
+              {!s.ingredientsOk && <p className="text-amber-600 text-xs mt-2">⚠ {t("missingIngredientsWarn")}</p>}
             </div>
           </Card>
         ))}

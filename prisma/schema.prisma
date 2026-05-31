@@ -26,6 +26,12 @@ enum ItemKind {
   PREP         // prepared in-house product (guacamole...)
 }
 
+// Physical area an item belongs to, for inventory organisation + count scope.
+enum Area {
+  KITCHEN
+  FLOOR
+}
+
 enum OrderStatus {
   NEED_TO_ORDER
   ORDERED
@@ -106,6 +112,7 @@ model User {
   passwordHash  String
   role          Role     @default(EMPLOYEE)
   locale        String   @default("he") // "he" | "en"
+  area          Area?    // optional focus area for employees (kitchen / floor)
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -132,6 +139,7 @@ model Category {
   nameEn    String
   kind      ItemKind @default(RAW)
   sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -188,9 +196,16 @@ model InventoryItem {
   currentQty    Float    @default(0)
   minQty        Float    @default(0)   // minimum (safety) stock
   parQty        Float    @default(0)   // target / par level
+  // Organisation + daily-count scope (Phase 2)
+  area          Area     @default(KITCHEN) // which area this item lives in
+  inCount       Boolean  @default(true)    // whether it appears in the daily count
   // Ordering rules
   orderMultiple Float?                 // round order up to multiples of this (e.g. case of 6)
   packSize      Float?                 // units per pack/case
+  // Ordering unit (e.g. a "box" that contains 10 cakes)
+  orderUnitNameHe   String?
+  orderUnitNameEn   String?
+  unitsPerOrderUnit Float?             // base units per order unit (e.g. 10 cakes per box)
   avgDailyUsage Float    @default(0)   // rolling average consumption per day
   shelfLifeDays Int?                   // mainly for PREP items
   notes         String?

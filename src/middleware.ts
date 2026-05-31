@@ -4,5 +4,6 @@ export const config = {
     "/dashboard/:path*", "/inventory/:path*", "/suppliers/:path*", "/count/:path*",
     "/orders/:path*", "/prep/:path*", "/deliveries/:path*", "/waste/:path*",
     "/reports/:path*", "/users/:path*", "/settings/:path*", "/account/:path*",
+    "/categories/:path*", "/recipes/:path*", "/audit/:path*",
   ],
 };
