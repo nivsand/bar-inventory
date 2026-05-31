@@ -17,6 +17,7 @@ const NAV: { href: string; key: TKey; managerOnly?: boolean }[] = [
   { href: "/waste", key: "waste" },
   { href: "/reports", key: "reports", managerOnly: true },
   { href: "/users", key: "users", managerOnly: true },
+  { href: "/account", key: "account" },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -39,12 +40,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen flex flex-col">
       <header className="sticky top-0 z-20 bg-brand-700 text-white" style={{ paddingTop: "env(safe-area-inset-top)" }}>
         <div className="flex items-center justify-between px-4 h-14">
-          <div className="flex flex-col leading-tight">
+          <Link href="/account" className="flex flex-col leading-tight">
             <span className="font-bold text-lg">{t("appName")}</span>
             {session?.user?.name && (
               <span className="text-xs text-brand-100">{t("hi")}, {session.user.name}</span>
             )}
-          </div>
+          </Link>
           <div className="flex items-center gap-3">
             <button onClick={() => setLocale(locale === "he" ? "en" : "he")} className="text-sm bg-brand-600 rounded-lg px-3 py-1.5">
               {locale === "he" ? "EN" : "עב"}

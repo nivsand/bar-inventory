@@ -17,6 +17,7 @@ export default function UsersPage() {
   const [users, setUsers] = useState<U[]>([]);
   const [form, setForm] = useState({ name: "", email: "", password: "", role: "EMPLOYEE" });
   const [editing, setEditing] = useState<U | null>(null);
+  const [pw, setPw] = useState({ next: "", confirm: "" });
   const [error, setError] = useState("");
   const load = () => api("/api/users").then(setUsers);
   useEffect(() => { load(); }, []);
@@ -36,11 +37,21 @@ export default function UsersPage() {
   async function saveEdit() {
     if (!editing) return;
     setError("");
+    const body: any = { name: editing.name, email: editing.email, role: editing.role };
+    // Optional password reset.
+    if (pw.next || pw.confirm) {
+      if (pw.next.length < 8) { setError(t("passwordTooShort")); return; }
+      if (pw.next !== pw.confirm) { setError(t("passwordsDoNotMatch")); return; }
+      if (!window.confirm(t("confirmSavePassword"))) return;
+      body.password = pw.next;
+    }
     try {
-      await api(`/api/users/${editing.id}`, { method: "PATCH", body: JSON.stringify({ name: editing.name, email: editing.email, role: editing.role }) });
-      setEditing(null); load();
+      await api(`/api/users/${editing.id}`, { method: "PATCH", body: JSON.stringify(body) });
+      setEditing(null); setPw({ next: "", confirm: "" }); load();
     } catch (e: any) { setError(e.message); }
   }
+
+  function openEdit(u: U) { setPw({ next: "", confirm: "" }); setError(""); setEditing(u); }
 
   async function setActive(u: U, isActive: boolean) {
     await api(`/api/users/${u.id}`, { method: "PATCH", body: JSON.stringify({ isActive }) });
@@ -93,7 +104,7 @@ export default function UsersPage() {
               <td className="p-3 text-center">{u.isActive ? "✓" : "—"}</td>
               <td className="p-3">
                 <div className="flex gap-2 justify-end">
-                  {canManage(u) && <button className="text-brand-600" onClick={() => setEditing(u)}>{t("edit")}</button>}
+                  {canManage(u) && <button className="text-brand-600" onClick={() => openEdit(u)}>{t("edit")}</button>}
                   {isAdmin && u.id !== myId && (
                     <>
                       <button className="text-amber-600" onClick={() => setActive(u, !u.isActive)}>{u.isActive ? t("deactivate") : t("activate")}</button>
@@ -119,10 +130,22 @@ export default function UsersPage() {
                 {(isAdmin ? ["EMPLOYEE", "MANAGER", "ADMIN"] : [editing.role]).map((r) => <option key={r} value={r}>{r}</option>)}
               </select>
             </Field>
+
+            <div className="border-t pt-3 space-y-2">
+              <p className="text-sm font-medium text-gray-600">{t("resetPassword")}</p>
+              <Field label={t("newPassword")}>
+                <Input type="password" autoComplete="new-password" value={pw.next} onChange={(e) => setPw({ ...pw, next: e.target.value })} />
+              </Field>
+              <Field label={t("confirmPassword")}>
+                <Input type="password" autoComplete="new-password" value={pw.confirm} onChange={(e) => setPw({ ...pw, confirm: e.target.value })} />
+              </Field>
+              <p className="text-xs text-gray-400">{t("passwordRule")} · {t("leaveBlankKeep")}</p>
+            </div>
+
             {error && <p className="text-red-600 text-sm">{error}</p>}
             <div className="flex gap-2 pt-2">
               <button className="btn-primary flex-1" onClick={saveEdit}>{t("save")}</button>
-              <button className="btn-ghost" onClick={() => setEditing(null)}>{t("cancel")}</button>
+              <button className="btn-ghost" onClick={() => { setEditing(null); setPw({ next: "", confirm: "" }); }}>{t("cancel")}</button>
             </div>
           </div>
         </div>

@@ -33,6 +33,11 @@ export const dict = {
     archived: "בארכיון", viewArchived: "הצגת ארכיון", restore: "שחזור", hideArchived: "הסתרת ארכיון",
     confirmArchiveItem: "למחוק פריט זה? אם יש לו היסטוריה הוא יועבר לארכיון.",
     confirmArchiveSupplier: "למחוק ספק זה? אם יש לו היסטוריה הוא יועבר לארכיון.",
+    account: "חשבון", changePassword: "שינוי סיסמה", currentPassword: "סיסמה נוכחית",
+    newPassword: "סיסמה חדשה", confirmPassword: "אימות סיסמה", resetPassword: "איפוס סיסמה",
+    passwordChanged: "הסיסמה שונתה בהצלחה", passwordsDoNotMatch: "הסיסמאות אינן תואמות",
+    passwordTooShort: "הסיסמה חייבת לכלול לפחות 8 תווים", passwordRule: "לפחות 8 תווים",
+    confirmSavePassword: "לשמור סיסמה חדשה למשתמש זה?", leaveBlankKeep: "השאר ריק כדי לא לשנות",
   },
   en: {
     appName: "Bar Inventory",
@@ -67,6 +72,11 @@ export const dict = {
     archived: "Archived", viewArchived: "View archived", restore: "Restore", hideArchived: "Hide archived",
     confirmArchiveItem: "Delete this item? If it has history it will be archived.",
     confirmArchiveSupplier: "Delete this supplier? If it has history it will be archived.",
+    account: "Account", changePassword: "Change password", currentPassword: "Current password",
+    newPassword: "New password", confirmPassword: "Confirm password", resetPassword: "Reset password",
+    passwordChanged: "Password changed successfully", passwordsDoNotMatch: "Passwords do not match",
+    passwordTooShort: "Password must be at least 8 characters", passwordRule: "At least 8 characters",
+    confirmSavePassword: "Save a new password for this user?", leaveBlankKeep: "Leave blank to keep current",
   },
 } as const;
 

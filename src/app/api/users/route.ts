@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { ok, created, serverError, forbidden, badRequest } from "@/lib/api";
 import { logAudit } from "@/server/audit";
 import { canCreateUserWithRole, Role } from "@/lib/permissions";
+import { MIN_PASSWORD_LENGTH } from "@/lib/password";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 
@@ -23,7 +24,7 @@ export async function GET() {
 const schema = z.object({
   name: z.string().min(1),
   email: z.string().email(),
-  password: z.string().min(6).optional(),
+  password: z.string().min(MIN_PASSWORD_LENGTH).optional(),
   role: z.enum(["EMPLOYEE", "MANAGER", "ADMIN"]).default("EMPLOYEE"),
 });
 

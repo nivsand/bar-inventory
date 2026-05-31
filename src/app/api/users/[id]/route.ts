@@ -3,13 +3,14 @@ import { prisma } from "@/lib/prisma";
 import { ok, serverError, forbidden, badRequest, notFound } from "@/lib/api";
 import { logAudit, diff } from "@/server/audit";
 import { canEditUser, canAssignAdmin, Role } from "@/lib/permissions";
+import { MIN_PASSWORD_LENGTH } from "@/lib/password";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 
 const patchSchema = z.object({
   name: z.string().min(1).optional(),
   email: z.string().email().optional(),
-  password: z.string().min(6).optional(),
+  password: z.string().min(MIN_PASSWORD_LENGTH).optional(),
   role: z.enum(["EMPLOYEE", "MANAGER", "ADMIN"]).optional(),
   isActive: z.boolean().optional(),
 });
