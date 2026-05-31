@@ -1,0 +1,558 @@
+// Bar Inventory, Ordering & Prep Management System
+// Normalized PostgreSQL schema (Prisma ORM)
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  // Pooled connection for the app at runtime (Neon pgBouncer).
+  url       = env("DATABASE_URL")
+  // Direct (non-pooled) connection for migrations. On plain Postgres set
+  // DIRECT_URL to the same value as DATABASE_URL.
+  directUrl = env("DIRECT_URL")
+}
+
+// ----------------------------- ENUMS -----------------------------
+
+enum Role {
+  EMPLOYEE
+  MANAGER
+  ADMIN
+}
+
+enum ItemKind {
+  RAW          // raw ingredient (avocado, onion...)
+  PREP         // prepared in-house product (guacamole...)
+}
+
+enum OrderStatus {
+  NEED_TO_ORDER
+  ORDERED
+  ARRIVED
+  PARTIALLY_DELIVERED
+  MISSING_ITEMS
+  PROBLEM
+  CANCELLED
+}
+
+enum CountStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+enum PrepTaskStatus {
+  SUGGESTED
+  PLANNED
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+// Received-goods report approval workflow.
+enum DeliveryStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+enum OrderingMethod {
+  WHATSAPP
+  EMAIL
+  PHONE
+  APP        // supplier app / website (manual checklist)
+  OTHER
+}
+
+enum WasteReason {
+  SPOILED
+  EXPIRED
+  DAMAGED
+  PREP_MISTAKE
+  OVER_PRODUCTION
+  OTHER
+}
+
+enum AdjustmentSource {
+  DAILY_COUNT
+  DELIVERY
+  PREP_PRODUCTION
+  PREP_CONSUMPTION
+  WASTE
+  SALE          // reserved for future POS integration
+  MANUAL
+}
+
+enum NotificationType {
+  ORDER_DUE
+  DELIVERY_EXPECTED
+  PREP_DUE
+  LOW_STOCK
+  CRITICAL_STOCK
+  COUNT_MISSING
+  COUNT_PENDING_APPROVAL
+  GENERAL
+}
+
+// ----------------------------- AUTH / USERS -----------------------------
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String
+  passwordHash  String
+  role          Role     @default(EMPLOYEE)
+  locale        String   @default("he") // "he" | "en"
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  dailyCounts       DailyCount[]   @relation("CountedBy")
+  approvedCounts    DailyCount[]   @relation("ApprovedBy")
+  ordersCreated     Order[]        @relation("OrderCreatedBy")
+  deliveriesRecv    Delivery[]     @relation("DeliveryReceivedBy")
+  deliveriesApprv   Delivery[]     @relation("DeliveryApprovedBy")
+  wasteEntries      WasteEntry[]
+  auditLogs         AuditLog[]
+  notifications     Notification[]
+  prepTasks         PrepTask[]     @relation("PrepAssignee")
+  inventoryAdjusts  InventoryAdjustment[]
+
+  @@index([role])
+}
+
+// ----------------------------- CATEGORIES -----------------------------
+
+model Category {
+  id        String   @id @default(cuid())
+  nameHe    String
+  nameEn    String
+  kind      ItemKind @default(RAW)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items InventoryItem[]
+
+  @@index([kind])
+}
+
+// ----------------------------- SUPPLIERS -----------------------------
+
+model Supplier {
+  id              String         @id @default(cuid())
+  nameHe          String
+  nameEn          String
+  contactPerson   String?
+  phone           String?
+  whatsapp        String?
+  email           String?
+  orderingMethod  OrderingMethod @default(WHATSAPP)
+  // Order deadline: which weekdays (0=Sun..6=Sat) an order must be placed by, and the cutoff time.
+  orderDeadlineDays Int[]        @default([])
+  orderCutoffTime   String?      // "HH:mm"
+  // Delivery schedule: weekdays the supplier delivers on.
+  deliveryDays      Int[]        @default([])
+  minOrderAmount    Float?       // minimum order value/quantity requirement
+  minOrderNote      String?
+  leadTimeDays      Int          @default(1)
+  notes             String?
+  isActive          Boolean      @default(true)
+  // Archive / soft-delete (set when the supplier has history and can't be hard-deleted)
+  deletedAt         DateTime?
+  deletedById       String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  items  InventoryItem[]
+  orders Order[]
+
+  @@index([isActive])
+}
+
+// ----------------------------- INVENTORY ITEMS -----------------------------
+
+model InventoryItem {
+  id            String   @id @default(cuid())
+  nameHe        String
+  nameEn        String
+  sku           String?  @unique
+  kind          ItemKind @default(RAW)
+  categoryId    String?
+  supplierId    String?
+  unit          String   // kg, g, L, ml, unit, bottle...
+  // Stock levels
+  currentQty    Float    @default(0)
+  minQty        Float    @default(0)   // minimum (safety) stock
+  parQty        Float    @default(0)   // target / par level
+  // Ordering rules
+  orderMultiple Float?                 // round order up to multiples of this (e.g. case of 6)
+  packSize      Float?                 // units per pack/case
+  avgDailyUsage Float    @default(0)   // rolling average consumption per day
+  shelfLifeDays Int?                   // mainly for PREP items
+  notes         String?
+  isActive      Boolean  @default(true)
+  // Archive / soft-delete (set when the item has history and can't be hard-deleted)
+  deletedAt     DateTime?
+  deletedById   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  category   Category? @relation(fields: [categoryId], references: [id])
+  supplier   Supplier? @relation(fields: [supplierId], references: [id])
+
+  countEntries     DailyCountEntry[]
+  orderItems       OrderItem[]
+  deliveryItems    DeliveryItem[]
+  wasteEntries     WasteEntry[]
+  adjustments      InventoryAdjustment[]
+  // If this item is a PREP product, it has exactly one prep profile + recipe
+  prepItem         PrepItem?
+  // Recipe lines where THIS item is consumed as an ingredient
+  usedInRecipes    RecipeIngredient[] @relation("IngredientItem")
+  usedInMenu       MenuRecipeItem[]   @relation("MenuIngredientItem")
+
+  @@index([kind])
+  @@index([supplierId])
+  @@index([categoryId])
+}
+
+// Every quantity change to an item is recorded here (event-sourced stock ledger).
+model InventoryAdjustment {
+  id         String           @id @default(cuid())
+  itemId     String
+  source     AdjustmentSource
+  delta      Float            // +received / -consumed
+  resultQty  Float            // resulting currentQty after applying
+  refType    String?          // "DailyCount" | "Delivery" | "PrepTask" | "WasteEntry"...
+  refId      String?
+  userId     String?
+  note       String?
+  createdAt  DateTime         @default(now())
+
+  item InventoryItem @relation(fields: [itemId], references: [id])
+  user User?         @relation(fields: [userId], references: [id])
+
+  @@index([itemId, createdAt])
+  @@index([source])
+}
+
+// ----------------------------- DAILY COUNT -----------------------------
+
+model DailyCount {
+  id          String      @id @default(cuid())
+  businessDay DateTime    // the day being counted (date only)
+  status      CountStatus @default(DRAFT)
+  countedById String
+  approvedById String?
+  submittedAt DateTime?
+  approvedAt  DateTime?
+  notes       String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  countedBy  User              @relation("CountedBy", fields: [countedById], references: [id])
+  approvedBy User?             @relation("ApprovedBy", fields: [approvedById], references: [id])
+  entries    DailyCountEntry[]
+
+  @@index([businessDay])
+  @@index([status])
+}
+
+model DailyCountEntry {
+  id           String   @id @default(cuid())
+  countId      String
+  itemId       String
+  countedQty   Float
+  previousQty  Float?   // qty before this count (for audit/variance)
+  note         String?
+  createdAt    DateTime @default(now())
+
+  count DailyCount    @relation(fields: [countId], references: [id], onDelete: Cascade)
+  item  InventoryItem @relation(fields: [itemId], references: [id])
+
+  @@unique([countId, itemId])
+  @@index([itemId])
+}
+
+// ----------------------------- ORDERS -----------------------------
+
+model Order {
+  id            String      @id @default(cuid())
+  supplierId    String
+  status        OrderStatus @default(NEED_TO_ORDER)
+  createdById   String
+  orderDeadline DateTime?
+  expectedDate  DateTime?   // expected delivery date
+  sentAt        DateTime?
+  channel       OrderingMethod?
+  messageBody   String?     // the generated WhatsApp/email body
+  notes         String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  supplier   Supplier         @relation(fields: [supplierId], references: [id])
+  createdBy  User             @relation("OrderCreatedBy", fields: [createdById], references: [id])
+  items      OrderItem[]
+  deliveries Delivery[]
+  history    OrderStatusHistory[]
+
+  @@index([supplierId])
+  @@index([status])
+}
+
+model OrderItem {
+  id           String  @id @default(cuid())
+  orderId      String
+  itemId       String
+  suggestedQty Float
+  orderedQty   Float
+  currentQty   Float   // snapshot at time of suggestion
+  minQty       Float
+  reason       String? // why it was suggested
+  unit         String
+
+  order Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  item  InventoryItem @relation(fields: [itemId], references: [id])
+
+  @@unique([orderId, itemId])
+}
+
+model OrderStatusHistory {
+  id        String      @id @default(cuid())
+  orderId   String
+  status    OrderStatus
+  changedBy String?
+  note      String?
+  createdAt DateTime    @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+}
+
+// ----------------------------- DELIVERIES -----------------------------
+
+model Delivery {
+  id            String         @id @default(cuid())
+  orderId       String?
+  receivedById  String         // the user who REPORTED the received goods (employee or manager)
+  receivedAt    DateTime       @default(now())
+  status        DeliveryStatus @default(SUBMITTED) // DRAFT/SUBMITTED/APPROVED/REJECTED
+  confirmed     Boolean        @default(false)     // true once stock has been applied (== APPROVED)
+  hasShortage   Boolean        @default(false)
+  notes         String?
+  // approval
+  approvedById  String?
+  approvedAt    DateTime?
+  // OCR / document
+  documentUrl   String?
+  ocrRaw        String?        // raw OCR text/json kept for review
+  createdAt     DateTime       @default(now())
+
+  order        Order?         @relation(fields: [orderId], references: [id])
+  receivedBy   User           @relation("DeliveryReceivedBy", fields: [receivedById], references: [id])
+  approvedBy   User?          @relation("DeliveryApprovedBy", fields: [approvedById], references: [id])
+  items        DeliveryItem[]
+
+  @@index([orderId])
+  @@index([status])
+}
+
+model DeliveryItem {
+  id          String  @id @default(cuid())
+  deliveryId  String
+  itemId      String
+  orderedQty  Float?
+  receivedQty Float
+  unit        String
+  isMissing   Boolean @default(false)
+  isShort     Boolean @default(false)
+  note        String?
+
+  delivery Delivery      @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  item     InventoryItem @relation(fields: [itemId], references: [id])
+
+  @@index([itemId])
+}
+
+// ----------------------------- PREP / RECIPES -----------------------------
+
+// PrepItem is a 1:1 extension of an InventoryItem with kind = PREP.
+model PrepItem {
+  id            String   @id @default(cuid())
+  itemId        String   @unique
+  yieldQty      Float    @default(1) // recipe produces this many units
+  shelfLifeDays Int?
+  instructions  String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  item    InventoryItem @relation(fields: [itemId], references: [id])
+  recipe  Recipe?
+  tasks   PrepTask[]
+}
+
+model Recipe {
+  id          String   @id @default(cuid())
+  prepItemId  String   @unique
+  nameHe      String
+  nameEn      String
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  prepItem    PrepItem           @relation(fields: [prepItemId], references: [id], onDelete: Cascade)
+  ingredients RecipeIngredient[]
+}
+
+model RecipeIngredient {
+  id           String  @id @default(cuid())
+  recipeId     String
+  itemId       String  // raw or prep ingredient
+  qtyPerYield  Float   // qty needed to produce one recipe yield
+  unit         String
+
+  recipe Recipe        @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  item   InventoryItem @relation("IngredientItem", fields: [itemId], references: [id])
+
+  @@unique([recipeId, itemId])
+}
+
+model PrepTask {
+  id           String         @id @default(cuid())
+  prepItemId   String
+  targetQty    Float          // how much to produce
+  producedQty  Float?         // actual produced
+  status       PrepTaskStatus @default(SUGGESTED)
+  reason       String?
+  dueDate      DateTime?
+  assigneeId   String?
+  ingredientsOk Boolean       @default(true) // false if inventory insufficient
+  shortfallJson String?       // JSON of missing ingredients
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  prepItem PrepItem @relation(fields: [prepItemId], references: [id])
+  assignee User?    @relation("PrepAssignee", fields: [assigneeId], references: [id])
+
+  @@index([status])
+}
+
+// ----------------------------- MENU (for future POS) -----------------------------
+
+model MenuItem {
+  id        String   @id @default(cuid())
+  nameHe    String
+  nameEn    String
+  sku       String?  @unique
+  price     Float?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  recipe MenuRecipe?
+}
+
+model MenuRecipe {
+  id         String @id @default(cuid())
+  menuItemId String @unique
+  notes      String?
+
+  menuItem    MenuItem         @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  ingredients MenuRecipeItem[]
+}
+
+model MenuRecipeItem {
+  id           String @id @default(cuid())
+  menuRecipeId String
+  itemId       String // raw or prep item consumed per sale
+  qtyPerUnit   Float
+  unit         String
+
+  menuRecipe MenuRecipe    @relation(fields: [menuRecipeId], references: [id], onDelete: Cascade)
+  item       InventoryItem @relation("MenuIngredientItem", fields: [itemId], references: [id])
+
+  @@unique([menuRecipeId, itemId])
+}
+
+// Reserved for future POS integration. Not used by MVP logic.
+model SalesImport {
+  id          String   @id @default(cuid())
+  source      String   // POS name
+  businessDay DateTime
+  rawPayload  String   // raw imported data
+  processed   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([businessDay])
+}
+
+// ----------------------------- WASTE -----------------------------
+
+model WasteEntry {
+  id        String      @id @default(cuid())
+  itemId    String
+  qty       Float
+  unit      String
+  reason    WasteReason
+  userId    String
+  note      String?
+  createdAt DateTime    @default(now())
+
+  item InventoryItem @relation(fields: [itemId], references: [id])
+  user User          @relation(fields: [userId], references: [id])
+
+  @@index([itemId])
+  @@index([createdAt])
+}
+
+// ----------------------------- NOTIFICATIONS -----------------------------
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String?          // null = broadcast to all managers
+  type      NotificationType
+  titleHe   String
+  titleEn   String
+  bodyHe    String?
+  bodyEn    String?
+  read      Boolean          @default(false)
+  refType   String?
+  refId     String?
+  createdAt DateTime         @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId, read])
+}
+
+// ----------------------------- AUDIT -----------------------------
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  entity    String   // "InventoryItem" | "Supplier" | "Order"...
+  entityId  String
+  action    String   // "CREATE" | "UPDATE" | "DELETE"
+  field     String?
+  oldValue  String?
+  newValue  String?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([entity, entityId])
+  @@index([createdAt])
+}
+
+// ----------------------------- SETTINGS -----------------------------
+
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}

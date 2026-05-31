@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body { height: 100%; }
+body {
+  @apply bg-gray-50 text-gray-900;
+  /* iOS: don't auto-enlarge text; respect home-screen safe areas */
+  -webkit-text-size-adjust: 100%;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Hide the horizontal-scroll nav's scrollbar (mobile) */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Inputs at >=16px so iOS Safari never zooms on focus */
+input, select, textarea { font-size: 16px; }
+
+/* Larger touch targets for mobile-first employee use */
+.touch-input { @apply h-14 text-lg rounded-xl border border-gray-300 px-4 w-full focus:ring-2 focus:ring-brand-400 outline-none; }
+.btn { @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 font-medium transition active:scale-95; }
+.btn-primary { @apply btn bg-brand-600 text-white hover:bg-brand-700; }
+.btn-ghost { @apply btn bg-white border border-gray-300 hover:bg-gray-50; }
+.btn-danger { @apply btn bg-red-600 text-white hover:bg-red-700; }
+.card { @apply bg-white rounded-2xl shadow-sm border border-gray-100 p-4; }
+.badge { @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium; }
