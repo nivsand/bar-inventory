@@ -56,3 +56,45 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     return serverError(e);
   }
 }
+
+// Delete a recipe (id = prepItemId). Manager/Admin only.
+// If the prep product has history (counts, adjustments, prep tasks, used as an
+// ingredient elsewhere, orders/deliveries/waste), soft-archive it; otherwise
+// hard-delete the recipe + prep item + underlying inventory item.
+export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+  try {
+    const user = await requireManager();
+    const prep = await prisma.prepItem.findUnique({ where: { id: params.id }, include: { item: true } });
+    if (!prep) return notFound();
+    const itemId = prep.itemId;
+
+    const [counts, adj, orders, deliveries, waste, usedAsIng, menuUse, tasks] = await prisma.$transaction([
+      prisma.dailyCountEntry.count({ where: { itemId } }),
+      prisma.inventoryAdjustment.count({ where: { itemId } }),
+      prisma.orderItem.count({ where: { itemId } }),
+      prisma.deliveryItem.count({ where: { itemId } }),
+      prisma.wasteEntry.count({ where: { itemId } }),
+      prisma.recipeIngredient.count({ where: { itemId } }), // this prep used inside other recipes
+      prisma.menuRecipeItem.count({ where: { itemId } }),
+      prisma.prepTask.count({ where: { prepItemId: params.id } }),
+    ]);
+    const hasHistory = counts + adj + orders + deliveries + waste + usedAsIng + menuUse + tasks > 0;
+
+    let result: "deleted" | "archived";
+    if (hasHistory) {
+      await prisma.inventoryItem.update({ where: { id: itemId }, data: { isActive: false, deletedAt: new Date(), deletedById: user.id } });
+      result = "archived";
+    } else {
+      await prisma.$transaction(async (tx) => {
+        await tx.prepItem.delete({ where: { id: params.id } }); // cascades recipe + ingredients
+        await tx.inventoryItem.delete({ where: { id: itemId } });
+      });
+      result = "deleted";
+    }
+
+    await logAudit({ userId: user.id, entity: "Recipe", entityId: params.id, action: "DELETE", changes: { state: { old: "active", new: result } } });
+    return ok({ ok: true, result });
+  } catch (e) {
+    return serverError(e);
+  }
+}

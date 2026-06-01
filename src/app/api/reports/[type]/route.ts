@@ -48,6 +48,17 @@ export async function GET(req: Request, { params }: { params: { type: string } }
         rows = d.map((x) => ({ date: x.receivedAt.toISOString(), supplier: x.order?.supplier.nameEn || "—", status: x.status, items: x.items.length, shortage: x.hasShortage ? "yes" : "", receivedBy: x.receivedBy?.name }));
         break;
       }
+      case "inventory-by-category": {
+        const items = await prisma.inventoryItem.findMany({ where: { isActive: true }, include: { category: true } });
+        const map = new Map<string, { category: string; quantity: number; items: number }>();
+        for (const i of items) {
+          const cat = i.category?.nameEn || "Uncategorized";
+          const m = map.get(cat) || { category: cat, quantity: 0, items: 0 };
+          m.quantity += i.currentQty; m.items++; map.set(cat, m);
+        }
+        rows = [...map.values()].map((m) => ({ ...m, quantity: Math.round(m.quantity * 100) / 100 }));
+        break;
+      }
       case "consumption": {
         const a = await prisma.inventoryAdjustment.findMany({ where: { source: { in: ["PREP_CONSUMPTION", "WASTE", "SALE"] } }, include: { item: true } });
         const map = new Map<string, { item: string; consumed: number }>();

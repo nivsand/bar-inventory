@@ -49,6 +49,8 @@ export const dict = {
     all: "הכל", selected: "נבחרו", assignCategory: "שיוך קטגוריה", confidence: "ביטחון",
     overduePrep: "הכנות באיחור", focusArea: "אזור עבודה", filter: "סינון", user: "משתמש", clearFilters: "נקה",
     bulkArchive: "ארכוב נבחרים", bulkRestore: "שחזור נבחרים", noFocus: "ללא",
+    createRecipe: "מתכון חדש", confirmArchiveRecipe: "למחוק מתכון זה? אם יש לו היסטוריה הוא יועבר לארכיון.",
+    recipeType: "סוג", tableView: "טבלה", chartView: "תרשים", byCategory: "מלאי לפי קטגוריה", quantityCol: "כמות",
   },
   en: {
     appName: "Bar Inventory",
@@ -99,6 +101,8 @@ export const dict = {
     all: "All", selected: "selected", assignCategory: "Assign category", confidence: "Confidence",
     overduePrep: "Overdue prep", focusArea: "Work area", filter: "Filter", user: "User", clearFilters: "Clear",
     bulkArchive: "Archive selected", bulkRestore: "Restore selected", noFocus: "None",
+    createRecipe: "Create recipe", confirmArchiveRecipe: "Delete this recipe? If it has history it will be archived.",
+    recipeType: "Type", tableView: "Table", chartView: "Chart", byCategory: "Inventory by category", quantityCol: "Quantity",
   },
 } as const;
 
