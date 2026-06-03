@@ -71,10 +71,17 @@ export default function OrdersPage() {
       itemId: it.itemId, suggestedQty: it.suggestedQty, orderedQty: qty[it.itemId] ?? it.suggestedQty,
       currentQty: it.currentQty, minQty: it.minQty, reason: it.reason, unit: it.unit,
     }));
+    // Create the order as OPEN (NEED_TO_ORDER). The manager reviews the message
+    // and then explicitly marks it as sent — we no longer auto-send.
     const order = await api("/api/orders", { method: "POST", body: JSON.stringify({ supplierId: group.supplier.id, items, channel: group.supplier.orderingMethod }) });
     const text = buildMessage(locale, group.supplier, mapItems(order.items));
-    await api(`/api/orders/${order.id}`, { method: "PATCH", body: JSON.stringify({ messageBody: text, status: "ORDERED" }) });
+    await api(`/api/orders/${order.id}`, { method: "PATCH", body: JSON.stringify({ messageBody: text }) });
     setMsg({ supplier: group.supplier, text });
+    load();
+  }
+
+  async function markSent(id: string) {
+    await api(`/api/orders/${id}`, { method: "PATCH", body: JSON.stringify({ status: "ORDERED" }) });
     load();
   }
 
@@ -144,54 +151,66 @@ export default function OrdersPage() {
         ))}
       </section>
 
-      <section className="space-y-3">
-        <h2 className="font-semibold text-lg">{t("openOrders")} · {t("history")}</h2>
-        {orders.map((o) => {
-          const editable = o.status !== "CANCELLED" && o.status !== "ARRIVED";
-          return (
-            <Card key={o.id}>
-              <div className="flex justify-between items-center gap-2">
-                <div>
-                  <span className="font-semibold">{name(o.supplier)}</span>
-                  <span className={`badge ms-2 ${STATUS_TONE[o.status]}`}>{o.status}</span>
-                  <p className="text-sm text-gray-400">{new Date(o.createdAt).toLocaleString()} · {o.items.length} {t("item")}</p>
+      {[
+        { key: "open", labelKey: "openOrders" as const, list: orders.filter((o) => o.status === "NEED_TO_ORDER") },
+        { key: "sent", labelKey: "sentOrders" as const, list: orders.filter((o) => o.status !== "NEED_TO_ORDER") },
+      ].map((sectionDef) => (
+        <section key={sectionDef.key} className="space-y-3">
+          <h2 className="font-semibold text-lg">{t(sectionDef.labelKey)} ({sectionDef.list.length})</h2>
+          {sectionDef.list.length === 0 && <Card><p className="text-gray-400">{t("noData")}</p></Card>}
+          {sectionDef.list.map((o) => {
+            const isOpen = o.status === "NEED_TO_ORDER";
+            const editable = o.status !== "CANCELLED" && o.status !== "ARRIVED";
+            return (
+              <Card key={o.id}>
+                <div className="flex justify-between items-center gap-2 flex-wrap">
+                  <div>
+                    <span className="font-semibold">{name(o.supplier)}</span>
+                    <span className={`badge ms-2 ${STATUS_TONE[o.status]}`}>{o.status}</span>
+                    <p className="text-sm text-gray-400">
+                      {new Date(o.createdAt).toLocaleString()} · {o.items.length} {t("item")}
+                      {o.createdBy?.name && <> · {o.createdBy.name}</>}
+                      {o.sentAt && <> · {t("markAsSent")}: {new Date(o.sentAt).toLocaleString()}</>}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {isManager && isOpen && <button className="btn-primary text-sm" onClick={() => markSent(o.id)}>{t("markAsSent")}</button>}
+                    <select className="touch-input h-10 w-auto text-sm" value={o.status} onChange={(e) => setStatus(o.id, e.target.value)}>
+                      {Object.keys(STATUS_TONE).map((s) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                    {isManager && <button className="text-red-600 text-sm" onClick={() => deleteOrder(o.id)}>{t("delete")}</button>}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <select className="touch-input h-10 w-auto text-sm" value={o.status} onChange={(e) => setStatus(o.id, e.target.value)}>
-                    {Object.keys(STATUS_TONE).map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                  {isManager && <button className="text-red-600 text-sm" onClick={() => deleteOrder(o.id)}>{t("delete")}</button>}
+
+                <ul className="mt-2 text-sm text-gray-600">
+                  {o.items.map((oi: any) => (
+                    <li key={oi.id} className="flex justify-between"><span>{name(oi.item)}</span><span>{oi.orderedQty} {oi.unit}</span></li>
+                  ))}
+                </ul>
+
+                <div className="flex flex-wrap gap-2 mt-2 items-center">
+                  <button className="text-brand-600 text-sm" onClick={() => openMessage(o)}>{t("copyMessage")}</button>
+                  {isManager && editable && (
+                    addTo === o.id ? (
+                      <span className="flex flex-wrap gap-2 items-center">
+                        <select className="touch-input h-10 w-auto text-sm" value={addForm.itemId} onChange={(e) => setAddForm({ ...addForm, itemId: e.target.value })}>
+                          <option value="">—</option>
+                          {inventory.map((i) => <option key={i.id} value={i.id}>{name(i)}</option>)}
+                        </select>
+                        <input className="touch-input h-10 w-20 text-center" type="number" placeholder={t("quantity")} value={addForm.qty} onChange={(e) => setAddForm({ ...addForm, qty: e.target.value })} />
+                        <button className="btn-primary text-sm" onClick={() => addItem(o.id)} disabled={!addForm.itemId || !addForm.qty}>{t("add")}</button>
+                        <button className="btn-ghost text-sm" onClick={() => { setAddTo(null); setAddForm({ itemId: "", qty: "" }); }}>{t("cancel")}</button>
+                      </span>
+                    ) : (
+                      <button className="btn-ghost text-sm" onClick={() => { setAddTo(o.id); setAddForm({ itemId: "", qty: "" }); }}>+ {t("addProduct")}</button>
+                    )
+                  )}
                 </div>
-              </div>
-
-              <ul className="mt-2 text-sm text-gray-600">
-                {o.items.map((oi: any) => (
-                  <li key={oi.id} className="flex justify-between"><span>{name(oi.item)}</span><span>{oi.orderedQty} {oi.unit}</span></li>
-                ))}
-              </ul>
-
-              <div className="flex flex-wrap gap-2 mt-2 items-center">
-                <button className="text-brand-600 text-sm" onClick={() => openMessage(o)}>{t("copyMessage")}</button>
-                {isManager && editable && (
-                  addTo === o.id ? (
-                    <span className="flex flex-wrap gap-2 items-center">
-                      <select className="touch-input h-10 w-auto text-sm" value={addForm.itemId} onChange={(e) => setAddForm({ ...addForm, itemId: e.target.value })}>
-                        <option value="">—</option>
-                        {inventory.map((i) => <option key={i.id} value={i.id}>{name(i)}</option>)}
-                      </select>
-                      <input className="touch-input h-10 w-20 text-center" type="number" placeholder={t("quantity")} value={addForm.qty} onChange={(e) => setAddForm({ ...addForm, qty: e.target.value })} />
-                      <button className="btn-primary text-sm" onClick={() => addItem(o.id)} disabled={!addForm.itemId || !addForm.qty}>{t("add")}</button>
-                      <button className="btn-ghost text-sm" onClick={() => { setAddTo(null); setAddForm({ itemId: "", qty: "" }); }}>{t("cancel")}</button>
-                    </span>
-                  ) : (
-                    <button className="btn-ghost text-sm" onClick={() => { setAddTo(o.id); setAddForm({ itemId: "", qty: "" }); }}>+ {t("addProduct")}</button>
-                  )
-                )}
-              </div>
-            </Card>
-          );
-        })}
-      </section>
+              </Card>
+            );
+          })}
+        </section>
+      ))}
 
       {msg && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-30 p-4" onClick={() => setMsg(null)}>

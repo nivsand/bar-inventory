@@ -175,8 +175,9 @@ model Supplier {
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
 
-  items  InventoryItem[]
-  orders Order[]
+  items      InventoryItem[]
+  orders     Order[]
+  deliveries Delivery[]
 
   @@index([isActive])
 }
@@ -354,6 +355,7 @@ model OrderStatusHistory {
 model Delivery {
   id            String         @id @default(cuid())
   orderId       String?
+  supplierId    String?        // supplier for a manual delivery (when there's no order)
   receivedById  String         // the user who REPORTED the received goods (employee or manager)
   receivedAt    DateTime       @default(now())
   status        DeliveryStatus @default(SUBMITTED) // DRAFT/SUBMITTED/APPROVED/REJECTED
@@ -369,6 +371,7 @@ model Delivery {
   createdAt     DateTime       @default(now())
 
   order        Order?         @relation(fields: [orderId], references: [id])
+  supplier     Supplier?      @relation(fields: [supplierId], references: [id])
   receivedBy   User           @relation("DeliveryReceivedBy", fields: [receivedById], references: [id])
   approvedBy   User?          @relation("DeliveryApprovedBy", fields: [approvedById], references: [id])
   items        DeliveryItem[]

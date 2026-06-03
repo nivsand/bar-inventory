@@ -22,6 +22,8 @@ export default function DeliveriesPage() {
   const isAdmin = role === "ADMIN";
 
   const [items, setItems] = useState<any[]>([]);
+  const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [supplierId, setSupplierId] = useState("");
   const [deliveries, setDeliveries] = useState<any[]>([]);
   const [rows, setRows] = useState<Row[]>([]);
   const [reporting, setReporting] = useState(false);
@@ -35,7 +37,7 @@ export default function DeliveriesPage() {
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
 
   const load = () => Promise.all([api("/api/inventory"), api("/api/deliveries")]).then(([inv, d]) => { setItems(inv); setDeliveries(d); });
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); api("/api/suppliers").then(setSuppliers).catch(() => {}); }, []);
 
   const blankRow = (): Row => ({ itemId: "", rawName: "", receivedQty: "", unit: "", note: "", isShort: false });
   const update = (idx: number, patch: Partial<Row>) => setRows((rs) => rs.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
@@ -81,8 +83,8 @@ export default function DeliveriesPage() {
       .map((r) => ({ itemId: r.itemId, receivedQty: Number(r.receivedQty), unit: r.unit || "unit", isShort: r.isShort, note: r.note || null }));
     if (payload.length === 0) { setError(t("noData")); return; }
     try {
-      await api("/api/deliveries", { method: "POST", body: JSON.stringify({ items: payload, status: "SUBMITTED", ocrRaw: ocrText, documentUrl: receipt }) });
-      setRows([]); setReporting(false); setOcrText(null); setReceipt(null); load();
+      await api("/api/deliveries", { method: "POST", body: JSON.stringify({ items: payload, status: "SUBMITTED", supplierId: supplierId || null, ocrRaw: ocrText, documentUrl: receipt }) });
+      setRows([]); setReporting(false); setOcrText(null); setReceipt(null); setSupplierId(""); load();
     } catch (e: any) { setError(e.message); }
   }
 
@@ -127,6 +129,16 @@ export default function DeliveriesPage() {
           <button onClick={() => setViewImg(receipt)} className="block">
             <img src={receipt} alt={t("receiptImage")} className="h-28 rounded-lg border object-cover" />
           </button>
+        )}
+
+        {reporting && (
+          <div className="max-w-xs">
+            <label className="text-sm text-gray-600">{t("supplier")}</label>
+            <select className="touch-input mt-1" value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
+              <option value="">—</option>
+              {suppliers.map((s) => <option key={s.id} value={s.id}>{name(s)}</option>)}
+            </select>
+          </div>
         )}
 
         {reporting && rows.length > 0 && (
@@ -221,8 +233,9 @@ export default function DeliveriesPage() {
                 </button>
               )}
               <div>
-                <span className="font-medium">{d.order ? name(d.order.supplier) : "—"}</span>
+                <span className="font-medium">{d.order?.supplier ? name(d.order.supplier) : d.supplier ? name(d.supplier) : "—"}</span>
                 <span className="badge ms-2 bg-gray-100">{d.items.length} {t("item")}</span>
+                {d.order && <span className="badge ms-2 bg-blue-100 text-blue-700">{t("orders")}</span>}
                 {d.hasShortage && <span className="badge ms-2 bg-red-100 text-red-700">{t("shortage")}</span>}
                 <p className="text-sm text-gray-400">{new Date(d.receivedAt).toLocaleString()} · {d.receivedBy?.name}</p>
                 <div className="flex gap-3 mt-1">

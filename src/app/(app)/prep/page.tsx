@@ -35,7 +35,10 @@ export default function PrepPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">{t("prep")}</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">{t("prep")}</h1>
+        <button className="btn-ghost text-sm" onClick={load}>↻ {t("refresh")}</button>
+      </div>
 
       {/* Prep planning / suggestions — manager & admin only (employees view tasks). */}
       {isManager && (
@@ -75,15 +78,32 @@ export default function PrepPage() {
         <h2 className="font-semibold text-lg">{t("prepTasks")}</h2>
         {tasks.length === 0 && <Card><p className="text-gray-400">{t("noData")}</p></Card>}
         {tasks.map((tk) => (
-          <Card key={tk.id} className="flex justify-between items-center">
-            <div>
-              <span className="font-medium">{name(tk.prepItem.item)}</span> — {tk.targetQty} {tk.prepItem.item.unit}
-              <span className="badge ms-2 bg-gray-100">{tk.status}</span>
+          <Card key={tk.id}>
+            <div className="flex justify-between items-center gap-2 flex-wrap">
+              <div>
+                <span className="font-medium">{name(tk.prepItem.item)}</span> — {tk.targetQty} {tk.prepItem.item.unit}
+                <span className="badge ms-2 bg-gray-100">{tk.status}</span>
+                {tk.status !== "DONE" && !tk.ingredientsOk && <span className="badge ms-2 bg-amber-100 text-amber-700">⚠</span>}
+              </div>
+              <div className="flex gap-2">
+                {tk.status !== "DONE" && <button className="btn-primary text-sm" onClick={() => complete(tk.id)}>✓ {t("markDone")}</button>}
+                {isManager && <button className="btn-ghost text-sm text-red-600" onClick={() => removeTask(tk.id)}>{t("delete")}</button>}
+              </div>
             </div>
-            <div className="flex gap-2">
-              {tk.status !== "DONE" && <button className="btn-primary text-sm" onClick={() => complete(tk.id)}>✓ {t("markDone")}</button>}
-              {isManager && <button className="btn-ghost text-sm text-red-600" onClick={() => removeTask(tk.id)}>{t("delete")}</button>}
-            </div>
+            {tk.status !== "DONE" && tk.ingredients?.length > 0 && (
+              <div className="mt-2 text-sm border-t pt-2">
+                <span className="text-gray-500 text-xs">{t("required")} ({t("inventory")}):</span>
+                <ul className="mt-1 space-y-0.5">
+                  {tk.ingredients.map((ing: any) => (
+                    <li key={ing.itemId} className={`flex justify-between ${ing.shortfall > 0 ? "text-red-600" : ""}`}>
+                      <span>{name(ing)}</span>
+                      <span>{ing.required} {ing.unit} · {t("available")}: {ing.available}{ing.shortfall > 0 ? ` · ${t("insufficient")} ${ing.shortfall}` : ""}</span>
+                    </li>
+                  ))}
+                </ul>
+                {!tk.ingredientsOk && <p className="text-amber-600 text-xs mt-1">⚠ {t("missingIngredientsWarn")}</p>}
+              </div>
+            )}
           </Card>
         ))}
       </section>

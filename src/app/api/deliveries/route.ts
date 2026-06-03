@@ -10,6 +10,7 @@ export async function GET() {
     const deliveries = await prisma.delivery.findMany({
       include: {
         order: { include: { supplier: true } },
+        supplier: true,
         items: { include: { item: true } },
         receivedBy: true,
         approvedBy: true,
@@ -25,6 +26,7 @@ export async function GET() {
 
 const schema = z.object({
   orderId: z.string().nullable().optional(),
+  supplierId: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
   documentUrl: z.string().nullable().optional(),
   ocrRaw: z.string().nullable().optional(),
@@ -56,6 +58,7 @@ export async function POST(req: Request) {
     const delivery = await prisma.delivery.create({
       data: {
         orderId: body.orderId ?? null,
+        supplierId: body.supplierId ?? null,
         receivedById: user.id,
         notes: body.notes ?? null,
         documentUrl: body.documentUrl ?? null,

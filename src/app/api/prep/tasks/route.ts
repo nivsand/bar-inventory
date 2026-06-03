@@ -7,10 +7,36 @@ export async function GET() {
   try {
     await requireUser();
     const tasks = await prisma.prepTask.findMany({
-      include: { prepItem: { include: { item: true } }, assignee: true },
+      // Include the LATEST recipe + ingredient current stock so the task's
+      // ingredient list is always computed from current inventory and the
+      // up-to-date recipe (not a snapshot taken at creation time).
+      include: {
+        prepItem: {
+          include: {
+            item: true,
+            recipe: { include: { ingredients: { include: { item: { select: { id: true, nameHe: true, nameEn: true, currentQty: true, unit: true } } } } } },
+          },
+        },
+        assignee: true,
+      },
       orderBy: { createdAt: "desc" }, take: 100,
     });
-    return ok(tasks);
+
+    // Compute required / available / shortage live for each open task.
+    const withBreakdown = tasks.map((tk) => {
+      const yieldQty = tk.prepItem.yieldQty || 1;
+      const batches = yieldQty > 0 ? tk.targetQty / yieldQty : tk.targetQty;
+      const ingredients = (tk.prepItem.recipe?.ingredients ?? []).map((ri) => {
+        const required = Math.round(ri.qtyPerYield * batches * 1000) / 1000;
+        const available = ri.item.currentQty;
+        const shortfall = Math.max(0, Math.round((required - available) * 1000) / 1000);
+        return { itemId: ri.itemId, nameHe: ri.item.nameHe, nameEn: ri.item.nameEn, unit: ri.unit, required, available, shortfall };
+      });
+      const ingredientsOk = ingredients.every((i) => i.shortfall <= 0);
+      return { ...tk, ingredients, ingredientsOk };
+    });
+
+    return ok(withBreakdown);
   } catch (e) { return serverError(e); }
 }
 
