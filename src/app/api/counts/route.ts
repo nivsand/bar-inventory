@@ -1,13 +1,34 @@
+// Always render fresh from the DB — never serve cached/stale data.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ok, created, serverError } from "@/lib/api";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     await requireUser();
+    const sp = new URL(req.url).searchParams;
+    const status = sp.get("status") || undefined;       // DRAFT/SUBMITTED/APPROVED/REJECTED
+    const employeeId = sp.get("employeeId") || undefined;
+    const from = sp.get("from");
+    const to = sp.get("to");
+
+    const where: any = {};
+    if (status) where.status = status;
+    if (employeeId) where.countedById = employeeId;
+    if (from || to) {
+      where.businessDay = {};
+      if (from) where.businessDay.gte = new Date(from);
+      if (to) { const d = new Date(to); d.setHours(23, 59, 59, 999); where.businessDay.lte = d; }
+    }
+
     const counts = await prisma.dailyCount.findMany({
+      where,
       include: { countedBy: true, approvedBy: true, _count: { select: { entries: true } } },
-      orderBy: { businessDay: "desc" }, take: 60,
+      orderBy: [{ businessDay: "desc" }, { createdAt: "desc" }],
+      take: 300,
     });
     return ok(counts);
   } catch (e) { return serverError(e); }

@@ -9,6 +9,7 @@ import clsx from "clsx";
 const NAV: { href: string; key: TKey; managerOnly?: boolean; adminOnly?: boolean }[] = [
   { href: "/dashboard", key: "dashboard" },
   { href: "/count", key: "dailyCount" },
+  { href: "/count-history", key: "countHistory", managerOnly: true },
   { href: "/prep", key: "prep" },
   { href: "/inventory", key: "inventory" },
   { href: "/recipes", key: "recipes", managerOnly: true },

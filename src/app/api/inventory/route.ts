@@ -1,3 +1,7 @@
+// Always render fresh from the DB — never serve cached/stale data.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 import { requireUser, requireManager } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ok, created, serverError } from "@/lib/api";
