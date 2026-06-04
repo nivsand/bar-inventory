@@ -80,14 +80,16 @@ export default function PrepPage() {
                 <div>
                   <h3 className="font-semibold">{name(s)}</h3>
                   <p className="text-sm text-gray-500">{t("current")}: {s.currentQty} → {t("par")}: {s.parQty} {s.unit}</p>
-                  <p className="text-brand-700 font-medium mt-1">{t("prepare")}: {s.produceQty} {s.unit}</p>
+                  {s.prepNeeded
+                    ? <p className="text-brand-700 font-medium mt-1">{t("prepare")}: {s.produceQty} {s.unit}</p>
+                    : <p className="text-emerald-700 font-medium mt-1">✓ {t("noPrepNeeded")}</p>}
                 </div>
-                <button className="btn-primary text-sm" onClick={() => createTask(s)}>+ {t("prepTasks")}</button>
+                {s.prepNeeded && <button className="btn-primary text-sm" onClick={() => createTask(s)}>+ {t("prepTasks")}</button>}
               </div>
               <div className="mt-2 border-t pt-2">
                 <span className="text-gray-500 text-xs">{t("required")} ({t("inventory")}):</span>
                 <IngredientList list={s.ingredients} />
-                {!s.ingredientsOk && <p className="text-amber-600 text-xs mt-1">⚠ {t("missingIngredientsWarn")}</p>}
+                {s.prepNeeded && !s.ingredientsOk && <p className="text-amber-600 text-xs mt-1">⚠ {t("missingIngredientsWarn")}</p>}
               </div>
             </Card>
           ))}

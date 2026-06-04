@@ -80,6 +80,19 @@ export default function InventoryPage() {
     await api("/api/inventory/bulk", { method: "POST", body: JSON.stringify({ action: "restore", ids: [...selArch] }) });
     setSelArch(new Set()); loadArchived(); load();
   }
+  async function bulkPermanentDelete() {
+    if (!window.confirm(t("confirmPermanentDelete"))) return;
+    try {
+      const res = await api("/api/inventory/bulk", { method: "POST", body: JSON.stringify({ action: "permanentDelete", ids: [...selArch] }) });
+      let msg = `${t("deleted")}: ${res.deletedCount}`;
+      if (res.failedCount > 0) {
+        msg += `\n${t("failed")}: ${res.failedCount}\n` +
+          res.failed.map((f: any) => `• ${f.nameEn} — ${f.reason}`).join("\n");
+      }
+      alert(msg);
+      setSelArch(new Set()); loadArchived(); load();
+    } catch (e: any) { alert(e.message); }
+  }
 
   const filtered = items.filter((i) =>
     (i.area || "KITCHEN") === areaTab &&
@@ -110,9 +123,14 @@ export default function InventoryPage() {
 
       {isAdmin && showArchived && (
         <Card className="p-0 overflow-x-auto border-amber-200">
-          <div className="px-3 py-2 bg-amber-50 text-amber-800 text-sm font-medium flex justify-between items-center">
+          <div className="px-3 py-2 bg-amber-50 text-amber-800 text-sm font-medium flex flex-wrap justify-between items-center gap-2">
             <span>{t("archived")}</span>
-            {selArch.size > 0 && <button className="btn-primary text-xs" onClick={bulkRestore}>{t("bulkRestore")} ({selArch.size})</button>}
+            {selArch.size > 0 && (
+              <span className="flex gap-2 flex-wrap">
+                <button className="btn-primary text-xs" onClick={bulkRestore}>{t("bulkRestore")} ({selArch.size})</button>
+                <button className="btn-danger text-xs" onClick={bulkPermanentDelete}>{t("bulkPermanentDelete")} ({selArch.size})</button>
+              </span>
+            )}
           </div>
           <table className="w-full text-sm">
             <tbody>

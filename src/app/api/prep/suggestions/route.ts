@@ -40,10 +40,11 @@ export async function GET() {
 
     const suggestions = prepItems
       .map((p) => {
-        if (!p.recipe) return null;
-        if (p.item.currentQty >= p.item.parQty) return null; // already at/above target
+        if (!p.recipe) return null; // only items that actually have a recipe
 
-        const produceQty = round(p.item.parQty - p.item.currentQty);
+        // Show EVERY active prep recipe, even when nothing needs preparing.
+        const produceQty = Math.max(0, round(p.item.parQty - p.item.currentQty));
+        const prepNeeded = produceQty > 0;
         const yieldQty = p.yieldQty || 1;
         const batches = yieldQty > 0 ? produceQty / yieldQty : produceQty;
 
@@ -89,6 +90,7 @@ export async function GET() {
           currentQty: p.item.currentQty,
           parQty: p.item.parQty,
           produceQty,
+          prepNeeded,
           ingredients,
           ingredientsOk: ingredients.every((i) => i.shortfall <= 0),
           hasInactiveIngredient: ingredients.some((i) => i.inactive),

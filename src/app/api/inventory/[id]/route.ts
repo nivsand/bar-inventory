@@ -2,7 +2,7 @@ import { requireManager, requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ok, serverError, badRequest } from "@/lib/api";
 import { logAudit, diff } from "@/server/audit";
-import { deleteOrArchiveItem } from "@/server/archive";
+import { deleteOrArchiveItem, hardDeleteItem, ItemReferencedError } from "@/server/archive";
 import { z } from "zod";
 
 // Whitelist of updatable fields. This is the fix for the edit-save bug: the
@@ -60,12 +60,15 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
     if (hard) {
       const user = await requireAdmin();
       try {
-        await prisma.inventoryItem.delete({ where: { id: params.id } });
+        await hardDeleteItem(params.id);
       } catch (e: any) {
-        if (e?.code === "P2003" || e?.code === "P2014") {
-          return badRequest("Cannot permanently delete: this item is still referenced by counts, orders, deliveries, waste, recipes or adjustments. It remains archived.");
+        if (e instanceof ItemReferencedError) {
+          return badRequest(`Cannot permanently delete: referenced by ${e.reasons.join(", ")}. It remains archived.`);
         }
-        throw e;
+        if (e?.code === "P2003" || e?.code === "P2014") {
+          return badRequest("Cannot permanently delete: this item is still referenced by history. It remains archived.");
+        }
+        return serverError(e);
       }
       await logAudit({ userId: user.id, entity: "InventoryItem", entityId: params.id, action: "DELETE", changes: { state: { old: "archived", new: "purged" } } });
       return ok({ ok: true, result: "deleted" });
