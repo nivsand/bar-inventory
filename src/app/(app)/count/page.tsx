@@ -6,11 +6,13 @@ import { api } from "@/lib/fetcher";
 import { sanitizeCountEntries } from "@/lib/count";
 import { Card, Input, Spinner } from "@/components/ui";
 import { CountDetailModal } from "@/components/CountDetailModal";
+import { CountHistory } from "@/components/CountHistory";
 
 export default function CountPage() {
   const { t, name } = useI18n();
   const { data: session } = useSession();
   const isManager = ["MANAGER", "ADMIN"].includes((session?.user as any)?.role);
+  const [tab, setTab] = useState<"new" | "history">("new");
   const [items, setItems] = useState<any[]>([]);
   const [area, setArea] = useState<"KITCHEN" | "FLOOR">("KITCHEN");
   const [values, setValues] = useState<Record<string, string>>({});
@@ -87,19 +89,37 @@ export default function CountPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <h1 className="text-2xl font-bold">{t("dailyCount")}</h1>
-        <div className="inline-flex rounded-xl bg-gray-100 p-1">
-          {(["KITCHEN", "FLOOR"] as const).map((a) => (
-            <button key={a} onClick={() => setArea(a)}
-              className={`px-4 py-1.5 rounded-lg text-sm font-medium ${area === a ? "bg-white shadow text-brand-700" : "text-gray-500"}`}>
-              {t(a === "KITCHEN" ? "kitchen" : "floor")}
+        <div className="flex gap-2">
+          <div className="inline-flex rounded-xl bg-gray-100 p-1">
+            <button onClick={() => setTab("new")}
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium ${tab === "new" ? "bg-white shadow text-brand-700" : "text-gray-500"}`}>
+              {t("newCount")}
             </button>
-          ))}
+            {isManager && (
+              <button onClick={() => setTab("history")}
+                className={`px-4 py-1.5 rounded-lg text-sm font-medium ${tab === "history" ? "bg-white shadow text-brand-700" : "text-gray-500"}`}>
+                {t("countHistory")}
+              </button>
+            )}
+          </div>
+          {tab === "new" && (
+            <div className="inline-flex rounded-xl bg-gray-100 p-1">
+              {(["KITCHEN", "FLOOR"] as const).map((a) => (
+                <button key={a} onClick={() => setArea(a)}
+                  className={`px-4 py-1.5 rounded-lg text-sm font-medium ${area === a ? "bg-white shadow text-brand-700" : "text-gray-500"}`}>
+                  {t(a === "KITCHEN" ? "kitchen" : "floor")}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
-      {isManager && pending.length > 0 && (
+      {tab === "history" && isManager && <CountHistory />}
+
+      {tab === "new" && isManager && pending.length > 0 && (
         <Card>
           <h2 className="font-semibold mb-2">{t("pendingApprovals")}</h2>
           <ul className="divide-y">
@@ -118,7 +138,7 @@ export default function CountPage() {
         </Card>
       )}
 
-      {!countId ? (
+      {tab === "new" && (!countId ? (
         <button className="btn-primary w-full h-14 text-lg" onClick={start}>{t("dailyCount")} →</button>
       ) : submitted ? (
         <Card className="text-center space-y-3">
@@ -158,7 +178,7 @@ export default function CountPage() {
             {saving ? "…" : t("submit")}
           </button>
         </>
-      )}
+      ))}
 
       <CountDetailModal detail={detail} isManager={isManager} onAction={approve} onClose={() => setDetail(null)} />
     </div>

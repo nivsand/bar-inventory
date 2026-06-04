@@ -9,7 +9,6 @@ import clsx from "clsx";
 const NAV: { href: string; key: TKey; managerOnly?: boolean; adminOnly?: boolean }[] = [
   { href: "/dashboard", key: "dashboard" },
   { href: "/count", key: "dailyCount" },
-  { href: "/count-history", key: "countHistory", managerOnly: true },
   { href: "/prep", key: "prep" },
   { href: "/inventory", key: "inventory" },
   { href: "/recipes", key: "recipes", managerOnly: true },
@@ -20,8 +19,8 @@ const NAV: { href: string; key: TKey; managerOnly?: boolean; adminOnly?: boolean
   { href: "/waste", key: "waste" },
   { href: "/reports", key: "reports", managerOnly: true },
   { href: "/audit", key: "audit", adminOnly: true },
-  { href: "/users", key: "users", managerOnly: true },
-  { href: "/account", key: "account" },
+  // Merged Users + Account: managers manage users here, everyone changes their own password.
+  { href: "/users", key: "account" },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -45,7 +44,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen flex flex-col">
       <header className="sticky top-0 z-20 bg-brand-700 text-white" style={{ paddingTop: "env(safe-area-inset-top)" }}>
         <div className="flex items-center justify-between px-4 h-14">
-          <Link href="/account" className="flex flex-col leading-tight">
+          <Link href="/users" className="flex flex-col leading-tight">
             <span className="font-bold text-lg">{t("appName")}</span>
             {session?.user?.name && (
               <span className="text-xs text-brand-100">{t("hi")}, {session.user.name}</span>

@@ -1,13 +1,42 @@
-import { requireManager } from "@/lib/auth";
+import { requireManager, requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ok, serverError } from "@/lib/api";
+import { applyAdjustment } from "@/server/stock";
 import { logAudit } from "@/server/audit";
 
-// Edit a prep task. Manager/Admin only.
+// PATCH a prep task.
+//  - { action: "COMPLETE", producedQty? }  -> mark done (any user). Consumes
+//    ingredients (from the LATEST recipe) and produces the prep item, all
+//    through the stock ledger.
+//  - otherwise -> edit fields (manager/admin only).
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   try {
+    const body = await req.json();
+
+    if (body.action === "COMPLETE") {
+      const user = await requireUser();
+      await prisma.$transaction(async (tx) => {
+        const task = await tx.prepTask.findUniqueOrThrow({
+          where: { id: params.id },
+          include: { prepItem: { include: { item: true, recipe: { include: { ingredients: true } } } } },
+        });
+        const produced = body.producedQty != null ? Number(body.producedQty) : task.targetQty;
+        const yieldQty = task.prepItem.yieldQty || 1;
+        const batches = yieldQty > 0 ? produced / yieldQty : produced;
+        // consume ingredients per the latest recipe
+        for (const ing of task.prepItem.recipe?.ingredients ?? []) {
+          await applyAdjustment(tx, { itemId: ing.itemId, delta: -ing.qtyPerYield * batches, source: "PREP_CONSUMPTION", refType: "PrepTask", refId: task.id, userId: user.id });
+        }
+        // produce the prep item
+        await applyAdjustment(tx, { itemId: task.prepItem.itemId, delta: produced, source: "PREP_PRODUCTION", refType: "PrepTask", refId: task.id, userId: user.id });
+        await tx.prepTask.update({ where: { id: task.id }, data: { status: "DONE", producedQty: produced } });
+      });
+      await logAudit({ userId: user.id, entity: "PrepTask", entityId: params.id, action: "UPDATE", changes: { status: { old: null, new: "DONE" } } });
+      return ok({ ok: true });
+    }
+
+    // Edit (manager/admin only)
     const user = await requireManager();
-    const body = await req.json(); // { targetQty?, assigneeId?, dueDate?, status?, reason? }
     const data: any = {};
     if (body.targetQty !== undefined) data.targetQty = Number(body.targetQty);
     if (body.assigneeId !== undefined) data.assigneeId = body.assigneeId || null;

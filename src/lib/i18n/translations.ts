@@ -52,7 +52,7 @@ export const dict = {
     createRecipe: "מתכון חדש", confirmArchiveRecipe: "למחוק מתכון זה? אם יש לו היסטוריה הוא יועבר לארכיון.",
     recipeType: "סוג", tableView: "טבלה", chartView: "תרשים", byCategory: "מלאי לפי קטגוריה", quantityCol: "כמות",
     viewDetails: "צפייה בפרטים", markAsSent: "סמן כנשלח", sentOrders: "הזמנות שנשלחו", refresh: "רענון",
-    countHistory: "היסטוריית ספירות",
+    countHistory: "היסטוריית ספירות", newCount: "ספירה חדשה", myAccount: "החשבון שלי",
   },
   en: {
     appName: "Bar Inventory",
@@ -106,7 +106,7 @@ export const dict = {
     createRecipe: "Create recipe", confirmArchiveRecipe: "Delete this recipe? If it has history it will be archived.",
     recipeType: "Type", tableView: "Table", chartView: "Chart", byCategory: "Inventory by category", quantityCol: "Quantity",
     viewDetails: "View details", markAsSent: "Mark as sent", sentOrders: "Sent orders", refresh: "Refresh",
-    countHistory: "Count history",
+    countHistory: "Count history", newCount: "New count", myAccount: "My account",
   },
 } as const;
 

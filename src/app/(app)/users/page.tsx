@@ -12,15 +12,37 @@ export default function UsersPage() {
   const { data: session } = useSession();
   const myRole = (session?.user as any)?.role;
   const myId = (session?.user as any)?.id;
+  const myName = (session?.user as any)?.name;
+  const myEmail = (session?.user as any)?.email;
   const isAdmin = myRole === "ADMIN";
+  const isManager = myRole === "MANAGER" || myRole === "ADMIN";
 
   const [users, setUsers] = useState<U[]>([]);
   const [form, setForm] = useState({ name: "", email: "", password: "", role: "EMPLOYEE", area: "" });
   const [editing, setEditing] = useState<U | null>(null);
   const [pw, setPw] = useState({ next: "", confirm: "" });
   const [error, setError] = useState("");
+
+  // Self-service "change my own password" (available to every role).
+  const [myPw, setMyPw] = useState({ current: "", next: "", confirm: "" });
+  const [myPwMsg, setMyPwMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
   const load = () => api("/api/users").then(setUsers);
-  useEffect(() => { load(); }, []);
+  useEffect(() => { if (isManager) load(); }, [isManager]);
+
+  async function changeMyPassword(e: React.FormEvent) {
+    e.preventDefault();
+    setMyPwMsg(null);
+    if (myPw.next.length < 8) { setMyPwMsg({ ok: false, text: t("passwordTooShort") }); return; }
+    if (myPw.next !== myPw.confirm) { setMyPwMsg({ ok: false, text: t("passwordsDoNotMatch") }); return; }
+    try {
+      await api("/api/me/password", { method: "POST", body: JSON.stringify({ currentPassword: myPw.current, newPassword: myPw.next }) });
+      setMyPw({ current: "", next: "", confirm: "" });
+      setMyPwMsg({ ok: true, text: t("passwordChanged") });
+    } catch (e: any) {
+      setMyPwMsg({ ok: false, text: e.message });
+    }
+  }
 
   // Admin can assign any role; manager can only create employees.
   const roleOptions = isAdmin ? ["EMPLOYEE", "MANAGER", "ADMIN"] : ["EMPLOYEE"];
@@ -67,12 +89,25 @@ export default function UsersPage() {
   // A manager may only manage EMPLOYEE accounts; admin manages everyone.
   const canManage = (u: U) => isAdmin || u.role === "EMPLOYEE";
 
-  if (!users) return <div className="flex justify-center py-20"><Spinner /></div>;
-
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold">{t("users")}</h1>
+      <h1 className="text-2xl font-bold">{isManager ? t("users") : t("myAccount")}</h1>
 
+      {/* My account — change own password (every role) */}
+      <Card className="space-y-3 max-w-md">
+        <h2 className="font-semibold">{t("myAccount")}</h2>
+        <p className="text-sm text-gray-500">{myName} · {myEmail} · {myRole}</p>
+        <form onSubmit={changeMyPassword} className="space-y-3">
+          <Field label={t("currentPassword")}><Input type="password" autoComplete="current-password" value={myPw.current} onChange={(e) => setMyPw({ ...myPw, current: e.target.value })} /></Field>
+          <Field label={t("newPassword")}><Input type="password" autoComplete="new-password" value={myPw.next} onChange={(e) => setMyPw({ ...myPw, next: e.target.value })} /></Field>
+          <Field label={t("confirmPassword")}><Input type="password" autoComplete="new-password" value={myPw.confirm} onChange={(e) => setMyPw({ ...myPw, confirm: e.target.value })} /></Field>
+          <p className="text-xs text-gray-400">{t("passwordRule")}</p>
+          {myPwMsg && <p className={`text-sm ${myPwMsg.ok ? "text-emerald-700" : "text-red-600"}`}>{myPwMsg.ok ? "✓ " : ""}{myPwMsg.text}</p>}
+          <button className="btn-primary w-full" disabled={!myPw.current || !myPw.next || !myPw.confirm}>{t("changePassword")}</button>
+        </form>
+      </Card>
+
+      {!isManager ? null : (<>
       <Card className="space-y-3">
         <h2 className="font-semibold">{t("add")}</h2>
         <div className="grid grid-cols-2 gap-3">
@@ -168,6 +203,7 @@ export default function UsersPage() {
           </div>
         </div>
       )}
+      </>)}
     </div>
   );
 }
