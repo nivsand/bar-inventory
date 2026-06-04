@@ -16,7 +16,7 @@ export async function GET() {
         prepItem: {
           include: {
             item: true,
-            recipe: { include: { ingredients: { include: { item: { select: { id: true, nameHe: true, nameEn: true, currentQty: true } } } } } },
+            recipe: { include: { ingredients: { include: { item: { select: { id: true, nameHe: true, nameEn: true, currentQty: true, isActive: true } } } } } },
           },
         },
         assignee: true,
@@ -30,9 +30,9 @@ export async function GET() {
       const batches = yieldQty > 0 ? tk.targetQty / yieldQty : tk.targetQty;
       const ingredients = (tk.prepItem.recipe?.ingredients ?? []).map((ri) => {
         const required = round(ri.qtyPerYield * batches);
-        const available = ri.item.currentQty;
+        const available = ri.item.currentQty; // current stock of the LINKED item
         const shortfall = Math.max(0, round(required - available));
-        return { itemId: ri.itemId, nameHe: ri.item.nameHe, nameEn: ri.item.nameEn, unit: ri.unit, required, available, shortfall };
+        return { itemId: ri.itemId, nameHe: ri.item.nameHe, nameEn: ri.item.nameEn, unit: ri.unit, required, available, shortfall, inactive: !ri.item.isActive };
       });
       return { ...tk, ingredients, ingredientsOk: ingredients.every((i) => i.shortfall <= 0) };
     });

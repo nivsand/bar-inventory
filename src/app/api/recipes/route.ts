@@ -50,6 +50,13 @@ export async function POST(req: Request) {
     const user = await requireManager();
     const data = schema.parse(await req.json());
 
+    // Prevent duplicate prep products (the cause of duplicate "guacamole" rows).
+    const dup = await prisma.inventoryItem.findFirst({
+      where: { isActive: true, kind: "PREP", OR: [{ nameEn: data.nameEn }, { nameHe: data.nameHe }] },
+      select: { id: true },
+    });
+    if (dup) return badRequest("A prep item with this name already exists. Edit it instead of creating a duplicate.");
+
     const item = await prisma.$transaction(async (tx) => {
       const created = await tx.inventoryItem.create({
         data: {

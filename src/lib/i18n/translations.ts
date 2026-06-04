@@ -53,6 +53,7 @@ export const dict = {
     recipeType: "סוג", tableView: "טבלה", chartView: "תרשים", byCategory: "מלאי לפי קטגוריה", quantityCol: "כמות",
     viewDetails: "צפייה בפרטים", markAsSent: "סמן כנשלח", sentOrders: "הזמנות שנשלחו", refresh: "רענון",
     countHistory: "היסטוריית ספירות", newCount: "ספירה חדשה", myAccount: "החשבון שלי",
+    linkedArchived: "מקושר לפריט בארכיון — עדכנו את המתכון", archivedShort: "בארכיון",
   },
   en: {
     appName: "Bar Inventory",
@@ -107,6 +108,7 @@ export const dict = {
     recipeType: "Type", tableView: "Table", chartView: "Chart", byCategory: "Inventory by category", quantityCol: "Quantity",
     viewDetails: "View details", markAsSent: "Mark as sent", sentOrders: "Sent orders", refresh: "Refresh",
     countHistory: "Count history", newCount: "New count", myAccount: "My account",
+    linkedArchived: "linked to an archived item — update the recipe", archivedShort: "archived",
   },
 } as const;
 

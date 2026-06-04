@@ -115,7 +115,9 @@ export default function RecipesPage() {
                 <div key={i} className="flex gap-2 items-center">
                   <select className="touch-input h-11 flex-1" value={l.itemId} onChange={(e) => pickItem(i, e.target.value)}>
                     <option value="">—</option>
-                    {items.filter((it) => creating || it.id !== editing.itemId).map((it) => <option key={it.id} value={it.id}>{name(it)}</option>)}
+                    {items.filter((it) => creating || it.id !== editing.itemId).map((it) => (
+                      <option key={it.id} value={it.id}>{name(it)} · {t("current")} {it.currentQty} {it.unit}</option>
+                    ))}
                   </select>
                   <input className="touch-input h-11 w-20 text-center" type="number" placeholder={t("quantity")} value={l.qtyPerYield} onChange={(e) => setLine(i, { qtyPerYield: e.target.value })} />
                   <input className="touch-input h-11 w-16 text-center" placeholder={t("unit")} value={l.unit} onChange={(e) => setLine(i, { unit: e.target.value })} />

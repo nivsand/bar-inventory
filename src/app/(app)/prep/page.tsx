@@ -52,7 +52,10 @@ export default function PrepPage() {
     <ul className="mt-1 space-y-0.5 text-sm">
       {list.map((ing: any) => (
         <li key={ing.itemId} className={`flex justify-between ${ing.shortfall > 0 ? "text-red-600" : ""}`}>
-          <span>{name(ing)}</span>
+          <span>
+            {name(ing)}
+            {ing.inactive && <span className="badge ms-1 bg-red-100 text-red-700" title={t("linkedArchived")}>⚠ {t("archivedShort")}</span>}
+          </span>
           <span>{ing.required} {ing.unit} · {t("available")}: {ing.available}{ing.shortfall > 0 ? ` · ${t("insufficient")} ${ing.shortfall}` : ""}</span>
         </li>
       ))}
