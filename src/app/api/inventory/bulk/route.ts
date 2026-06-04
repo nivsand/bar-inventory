@@ -1,7 +1,7 @@
 import { requireManager, requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ok, serverError, badRequest } from "@/lib/api";
-import { deleteOrArchiveItem, hardDeleteItem, ItemReferencedError } from "@/server/archive";
+import { deleteOrArchiveItem, bulkHardDelete } from "@/server/archive";
 import { logAudit } from "@/server/audit";
 import { z } from "zod";
 
@@ -21,26 +21,19 @@ export async function POST(req: Request) {
 
     if (action === "permanentDelete") {
       const user = await requireAdmin();
+      // Names for the result summary.
       const items = await prisma.inventoryItem.findMany({ where: { id: { in: ids } }, select: { id: true, nameHe: true, nameEn: true } });
       const byId = new Map(items.map((i) => [i.id, i]));
-      const deleted: string[] = [];
-      const failed: { id: string; nameHe: string; nameEn: string; reason: string }[] = [];
 
-      for (const id of ids) {
-        try {
-          await hardDeleteItem(id);
-          deleted.push(id);
-        } catch (e: any) {
-          const it = byId.get(id);
-          const reason = e instanceof ItemReferencedError ? e.reasons.join(", ")
-            : (e?.code === "P2003" || e?.code === "P2014") ? "referenced by history"
-            : "unexpected error";
-          failed.push({ id, nameHe: it?.nameHe ?? id, nameEn: it?.nameEn ?? id, reason });
-        }
-      }
+      const { deleted, failed } = await bulkHardDelete(ids); // batched: ~2 round trips total
 
-      await logAudit({ userId: user.id, entity: "InventoryItem", entityId: ids.join(","), action: "DELETE", changes: { bulkPurge: { old: null, new: `${deleted.length} deleted, ${failed.length} failed` } } });
-      return ok({ deletedCount: deleted.length, failedCount: failed.length, failed });
+      const failedDetailed = failed.map((f) => {
+        const it = byId.get(f.id);
+        return { id: f.id, nameHe: it?.nameHe ?? f.id, nameEn: it?.nameEn ?? f.id, reason: f.reasons.join(", ") };
+      });
+
+      await logAudit({ userId: user.id, entity: "InventoryItem", entityId: ids.join(","), action: "DELETE", changes: { bulkPurge: { old: null, new: `${deleted.length} deleted, ${failed.length} kept` } } });
+      return ok({ deletedCount: deleted.length, failedCount: failed.length, failed: failedDetailed });
     }
 
     const user = await requireManager();

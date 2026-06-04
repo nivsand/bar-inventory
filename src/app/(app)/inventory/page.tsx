@@ -26,6 +26,10 @@ export default function InventoryPage() {
   const [archived, setArchived] = useState<any[]>([]);
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [selArch, setSelArch] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState(false);
+  const [bulkResult, setBulkResult] = useState<any | null>(null); // result modal
+  const [mergeOpen, setMergeOpen] = useState(false);
+  const [mergeTarget, setMergeTarget] = useState("");
   const [bulkCat, setBulkCat] = useState("");
 
   const load = () => api("/api/inventory").then((d) => { setItems(d); setLoading(false); });
@@ -82,16 +86,31 @@ export default function InventoryPage() {
   }
   async function bulkPermanentDelete() {
     if (!window.confirm(t("confirmPermanentDelete"))) return;
+    setBusy(true);
     try {
       const res = await api("/api/inventory/bulk", { method: "POST", body: JSON.stringify({ action: "permanentDelete", ids: [...selArch] }) });
-      let msg = `${t("deleted")}: ${res.deletedCount}`;
-      if (res.failedCount > 0) {
-        msg += `\n${t("failed")}: ${res.failedCount}\n` +
-          res.failed.map((f: any) => `• ${f.nameEn} — ${f.reason}`).join("\n");
-      }
-      alert(msg);
+      setBulkResult(res);
       setSelArch(new Set()); loadArchived(); load();
-    } catch (e: any) { alert(e.message); }
+    } catch (e: any) {
+      setBulkResult({ error: e.message });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function doMerge() {
+    if (!mergeTarget) return;
+    setBusy(true);
+    try {
+      const dupes = [...sel].filter((id) => id !== mergeTarget);
+      await api("/api/inventory/merge", { method: "POST", body: JSON.stringify({ targetId: mergeTarget, duplicateIds: dupes }) });
+      setMergeOpen(false); setMergeTarget(""); setSel(new Set());
+      load(); if (showArchived) loadArchived();
+    } catch (e: any) {
+      setBulkResult({ error: e.message });
+    } finally {
+      setBusy(false);
+    }
   }
 
   const filtered = items.filter((i) =>
@@ -127,8 +146,8 @@ export default function InventoryPage() {
             <span>{t("archived")}</span>
             {selArch.size > 0 && (
               <span className="flex gap-2 flex-wrap">
-                <button className="btn-primary text-xs" onClick={bulkRestore}>{t("bulkRestore")} ({selArch.size})</button>
-                <button className="btn-danger text-xs" onClick={bulkPermanentDelete}>{t("bulkPermanentDelete")} ({selArch.size})</button>
+                <button className="btn-primary text-xs" onClick={bulkRestore} disabled={busy}>{t("bulkRestore")} ({selArch.size})</button>
+                <button className="btn-danger text-xs" onClick={bulkPermanentDelete} disabled={busy}>{busy ? t("processing") : `${t("bulkPermanentDelete")} (${selArch.size})`}</button>
               </span>
             )}
           </div>
@@ -162,6 +181,9 @@ export default function InventoryPage() {
             {cats.map((c) => <option key={c.id} value={c.id}>{name(c)}</option>)}
           </select>
           <button className="btn-ghost text-xs" disabled={!bulkCat} onClick={bulkAssignCategory}>{t("save")}</button>
+          {isAdmin && sel.size >= 2 && (
+            <button className="btn-ghost text-xs" onClick={() => { setMergeTarget([...sel][0]); setMergeOpen(true); }}>{t("merge")}</button>
+          )}
           <button className="btn-ghost text-xs" onClick={() => setSel(new Set())}>{t("cancel")}</button>
         </div>
       )}
@@ -244,6 +266,68 @@ export default function InventoryPage() {
             {editing.id && isManager && (
               <button className="btn-danger w-full mt-1" onClick={() => remove(editing.id)}>{t("delete")}</button>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Bulk permanent-delete result */}
+      {bulkResult && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-40 p-4" onClick={() => setBulkResult(null)}>
+          <div className="bg-white rounded-2xl w-full max-w-lg p-5 space-y-3 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-xl font-bold">{t("result")}</h2>
+            {bulkResult.error ? (
+              <p className="text-red-600">{bulkResult.error}</p>
+            ) : (
+              <>
+                <div className="flex gap-4 text-sm">
+                  <span className="rounded-lg bg-emerald-50 text-emerald-700 px-3 py-1.5">{t("deleted")}: <b>{bulkResult.deletedCount}</b></span>
+                  <span className="rounded-lg bg-amber-50 text-amber-700 px-3 py-1.5">{t("kept")}: <b>{bulkResult.failedCount}</b></span>
+                </div>
+                {bulkResult.failedCount > 0 && (
+                  <>
+                    <p className="text-xs text-gray-500">{t("cannotPermanentDelete")}</p>
+                    <ul className="divide-y text-sm">
+                      {bulkResult.failed.map((f: any) => (
+                        <li key={f.id} className="py-2 flex justify-between gap-2">
+                          <span className="font-medium">{name(f)}</span>
+                          <span className="text-gray-500 text-end">{f.reason}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </>
+            )}
+            <button className="btn-primary w-full" onClick={() => setBulkResult(null)}>{t("save")}</button>
+          </div>
+        </div>
+      )}
+
+      {/* Merge duplicates (admin) */}
+      {mergeOpen && (
+        <div className="fixed inset-0 bg-black/40 flex items-end md:items-center justify-center z-40" onClick={() => setMergeOpen(false)}>
+          <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-md p-5 space-y-3 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-xl font-bold">{t("merge")}</h2>
+            <p className="text-sm text-gray-500">{t("selectTarget")}</p>
+            <ul className="space-y-1">
+              {[...sel].map((id) => {
+                const it = items.find((x) => x.id === id);
+                if (!it) return null;
+                return (
+                  <li key={id}>
+                    <label className="flex items-center gap-2 py-1">
+                      <input type="radio" name="mergeTarget" checked={mergeTarget === id} onChange={() => setMergeTarget(id)} />
+                      <span>{name(it)} <span className="text-gray-400 text-xs">· {t("current")} {it.currentQty} {it.unit}</span></span>
+                    </label>
+                  </li>
+                );
+              })}
+            </ul>
+            <p className="text-xs text-gray-400">{t("mergeInto")}: {name(items.find((x) => x.id === mergeTarget) || {})}</p>
+            <div className="flex gap-2 pt-2">
+              <button className="btn-primary flex-1" onClick={doMerge} disabled={busy || !mergeTarget}>{busy ? t("processing") : t("merge")}</button>
+              <button className="btn-ghost" onClick={() => setMergeOpen(false)}>{t("cancel")}</button>
+            </div>
           </div>
         </div>
       )}

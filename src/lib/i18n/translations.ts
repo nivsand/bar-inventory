@@ -55,6 +55,8 @@ export const dict = {
     countHistory: "היסטוריית ספירות", newCount: "ספירה חדשה", myAccount: "החשבון שלי",
     linkedArchived: "מקושר לפריט בארכיון — עדכנו את המתכון", archivedShort: "בארכיון",
     failed: "נכשלו", bulkPermanentDelete: "מחיקה לצמיתות של הנבחרים", noPrepNeeded: "אין צורך בהכנה",
+    kept: "נשמרו (בארכיון)", result: "תוצאה", processing: "מעבד…", merge: "מיזוג כפילויות",
+    selectTarget: "בחרו את הפריט שיישאר", mergeInto: "מזג לתוך", cannotPermanentDelete: "לא ניתן למחוק לצמיתות פריטים המשמשים בהיסטוריה — הם נשארים בארכיון",
   },
   en: {
     appName: "Bar Inventory",
@@ -111,6 +113,8 @@ export const dict = {
     countHistory: "Count history", newCount: "New count", myAccount: "My account",
     linkedArchived: "linked to an archived item — update the recipe", archivedShort: "archived",
     failed: "Failed", bulkPermanentDelete: "Permanent delete selected", noPrepNeeded: "No prep needed",
+    kept: "Kept (archived)", result: "Result", processing: "Processing…", merge: "Merge duplicates",
+    selectTarget: "Choose the item to keep", mergeInto: "Merge into", cannotPermanentDelete: "Items used in history can't be permanently deleted — they stay archived",
   },
 } as const;
 

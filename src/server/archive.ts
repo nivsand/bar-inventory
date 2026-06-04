@@ -55,6 +55,111 @@ export async function hardDeleteItem(itemId: string): Promise<void> {
   });
 }
 
+export type BulkDeleteResult = {
+  deleted: string[];
+  failed: { id: string; reasons: string[] }[];
+};
+
+/**
+ * Batched bulk permanent delete. Instead of 7 reference checks per item run
+ * sequentially (7×N round trips), this runs ONE set-based check per relation
+ * across ALL ids in parallel (7 queries total), then deletes the unreferenced
+ * items in a single transaction (2 statements). Total ≈ a couple of round
+ * trips regardless of N. Items with references are returned with reasons and
+ * are NOT deleted (the caller keeps them archived).
+ */
+export async function bulkHardDelete(ids: string[]): Promise<BulkDeleteResult> {
+  if (ids.length === 0) return { deleted: [], failed: [] };
+
+  const sel = { itemId: true } as const;
+  const where = { itemId: { in: ids } };
+  const [counts, orders, deliveries, waste, adjustments, usedAsIngredient, menuUse] = await Promise.all([
+    prisma.dailyCountEntry.findMany({ where, select: sel, distinct: ["itemId"] }),
+    prisma.orderItem.findMany({ where, select: sel, distinct: ["itemId"] }),
+    prisma.deliveryItem.findMany({ where, select: sel, distinct: ["itemId"] }),
+    prisma.wasteEntry.findMany({ where, select: sel, distinct: ["itemId"] }),
+    prisma.inventoryAdjustment.findMany({ where, select: sel, distinct: ["itemId"] }),
+    prisma.recipeIngredient.findMany({ where, select: sel, distinct: ["itemId"] }),
+    prisma.menuRecipeItem.findMany({ where, select: sel, distinct: ["itemId"] }),
+  ]);
+
+  const reasonsById = new Map<string, string[]>();
+  const tag = (rows: { itemId: string }[], label: string) => {
+    for (const r of rows) {
+      const arr = reasonsById.get(r.itemId) ?? [];
+      if (!arr.includes(label)) arr.push(label);
+      reasonsById.set(r.itemId, arr);
+    }
+  };
+  tag(counts, "counts");
+  tag(orders, "orders");
+  tag(deliveries, "deliveries");
+  tag(waste, "waste");
+  tag(adjustments, "stock history");
+  tag(usedAsIngredient, "used in recipes");
+  tag(menuUse, "menu");
+
+  const deletable = ids.filter((id) => !reasonsById.has(id));
+  const failed = ids.filter((id) => reasonsById.has(id)).map((id) => ({ id, reasons: reasonsById.get(id)! }));
+
+  if (deletable.length) {
+    await prisma.$transaction([
+      prisma.prepItem.deleteMany({ where: { itemId: { in: deletable } } }),
+      prisma.inventoryItem.deleteMany({ where: { id: { in: deletable } } }),
+    ]);
+  }
+
+  return { deleted: deletable, failed };
+}
+
+/**
+ * Merge duplicate inventory items into one active target item. Safe:
+ *  - Re-links recipe + menu ingredient lines from the duplicates to the target
+ *    (handling unique-constraint collisions by keeping one line per recipe).
+ *  - Archives the duplicates (soft delete). NEVER deletes counts/stock history.
+ */
+export async function mergeDuplicateItems(targetId: string, duplicateIds: string[], userId: string) {
+  const dupes = duplicateIds.filter((id) => id !== targetId);
+  if (dupes.length === 0) return { merged: 0 };
+
+  await prisma.$transaction(async (tx) => {
+    // ---- Recipe ingredient lines ----
+    const dupRecipeLines = await tx.recipeIngredient.findMany({ where: { itemId: { in: dupes } }, select: { id: true, recipeId: true } });
+    const targetRecipeIds = new Set(
+      (await tx.recipeIngredient.findMany({ where: { itemId: targetId }, select: { recipeId: true } })).map((r) => r.recipeId)
+    );
+    const rDelete: string[] = [];
+    const rUpdate: string[] = [];
+    const seenRecipe = new Set<string>();
+    for (const l of dupRecipeLines) {
+      if (targetRecipeIds.has(l.recipeId) || seenRecipe.has(l.recipeId)) rDelete.push(l.id);
+      else { rUpdate.push(l.id); seenRecipe.add(l.recipeId); }
+    }
+    if (rDelete.length) await tx.recipeIngredient.deleteMany({ where: { id: { in: rDelete } } });
+    if (rUpdate.length) await tx.recipeIngredient.updateMany({ where: { id: { in: rUpdate } }, data: { itemId: targetId } });
+
+    // ---- Menu recipe lines ----
+    const dupMenuLines = await tx.menuRecipeItem.findMany({ where: { itemId: { in: dupes } }, select: { id: true, menuRecipeId: true } });
+    const targetMenuIds = new Set(
+      (await tx.menuRecipeItem.findMany({ where: { itemId: targetId }, select: { menuRecipeId: true } })).map((r) => r.menuRecipeId)
+    );
+    const mDelete: string[] = [];
+    const mUpdate: string[] = [];
+    const seenMenu = new Set<string>();
+    for (const l of dupMenuLines) {
+      if (targetMenuIds.has(l.menuRecipeId) || seenMenu.has(l.menuRecipeId)) mDelete.push(l.id);
+      else { mUpdate.push(l.id); seenMenu.add(l.menuRecipeId); }
+    }
+    if (mDelete.length) await tx.menuRecipeItem.deleteMany({ where: { id: { in: mDelete } } });
+    if (mUpdate.length) await tx.menuRecipeItem.updateMany({ where: { id: { in: mUpdate } }, data: { itemId: targetId } });
+
+    // ---- Archive the duplicates (history stays attached to them) ----
+    await tx.inventoryItem.updateMany({ where: { id: { in: dupes } }, data: { isActive: false, deletedAt: new Date(), deletedById: userId } });
+  });
+
+  return { merged: dupes.length };
+}
+
 /**
  * Delete an inventory item if it has NO related history; otherwise soft-archive
  * it (isActive=false + deletedAt + deletedById) so existing counts, orders,

@@ -335,6 +335,7 @@ model OrderItem {
   item  InventoryItem @relation(fields: [itemId], references: [id])
 
   @@unique([orderId, itemId])
+  @@index([itemId])
 }
 
 model OrderStatusHistory {
@@ -438,6 +439,7 @@ model RecipeIngredient {
   item   InventoryItem @relation("IngredientItem", fields: [itemId], references: [id])
 
   @@unique([recipeId, itemId])
+  @@index([itemId])
 }
 
 model PrepTask {
@@ -495,6 +497,7 @@ model MenuRecipeItem {
   item       InventoryItem @relation("MenuIngredientItem", fields: [itemId], references: [id])
 
   @@unique([menuRecipeId, itemId])
+  @@index([itemId])
 }
 
 // Reserved for future POS integration. Not used by MVP logic.
