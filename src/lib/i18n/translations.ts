@@ -56,7 +56,11 @@ export const dict = {
     linkedArchived: "מקושר לפריט בארכיון — עדכנו את המתכון", archivedShort: "בארכיון",
     failed: "נכשלו", bulkPermanentDelete: "מחיקה לצמיתות של הנבחרים", noPrepNeeded: "אין צורך בהכנה",
     kept: "נשמרו (בארכיון)", result: "תוצאה", processing: "מעבד…", merge: "מיזוג כפילויות",
-    selectTarget: "בחרו את הפריט שיישאר", mergeInto: "מזג לתוך", cannotPermanentDelete: "לא ניתן למחוק לצמיתות פריטים המשמשים בהיסטוריה — הם נשארים בארכיון",
+    selectTarget: "בחרו את הפריט שיישאר", mergeInto: "מזג לתוך", cannotPermanentDelete: "לא ניתן למחוק לצמיתות פריטים המשמשים בהיסטוריה — הם נשארים בארכיון. להסרה מוחלטת כולל ההיסטוריה, השתמשו ב\"מחיקה כפויה של הנבחרים\".",
+    forceDeleteSelected: "מחיקה כפויה של הנבחרים",
+    forceDeleteWarning: "פעולה זו תמחק לצמיתות את הפריטים הנבחרים וכל ההיסטוריה הקשורה אליהם, כולל ספירות, הזמנות, קבלות סחורה, היסטוריית מלאי, רשומות פחת והתייחסויות במתכונים ותפריטים. לא ניתן לבטל פעולה זו.",
+    typeDeleteToConfirm: "הקלידו DELETE לאישור",
+    forceDeleteConfirmBtn: "מחיקה כפויה לצמיתות",
   },
   en: {
     appName: "Bar Inventory",
@@ -114,7 +118,11 @@ export const dict = {
     linkedArchived: "linked to an archived item — update the recipe", archivedShort: "archived",
     failed: "Failed", bulkPermanentDelete: "Permanent delete selected", noPrepNeeded: "No prep needed",
     kept: "Kept (archived)", result: "Result", processing: "Processing…", merge: "Merge duplicates",
-    selectTarget: "Choose the item to keep", mergeInto: "Merge into", cannotPermanentDelete: "Items used in history can't be permanently deleted — they stay archived",
+    selectTarget: "Choose the item to keep", mergeInto: "Merge into", cannotPermanentDelete: "Items used in history can't be permanently deleted — they stay archived. To remove them along with all history, use \"Force delete selected\".",
+    forceDeleteSelected: "Force delete selected",
+    forceDeleteWarning: "This will permanently delete the selected items and all related history, including counts, orders, deliveries, stock history, waste records, and recipe/menu references. This cannot be undone.",
+    typeDeleteToConfirm: "Type DELETE to confirm",
+    forceDeleteConfirmBtn: "Force delete permanently",
   },
 } as const;
 

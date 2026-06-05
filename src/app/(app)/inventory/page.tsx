@@ -28,6 +28,8 @@ export default function InventoryPage() {
   const [selArch, setSelArch] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [bulkResult, setBulkResult] = useState<any | null>(null); // result modal
+  const [forceDeleteOpen, setForceDeleteOpen] = useState(false);
+  const [forceConfirmText, setForceConfirmText] = useState("");
   const [mergeOpen, setMergeOpen] = useState(false);
   const [mergeTarget, setMergeTarget] = useState("");
   const [bulkCat, setBulkCat] = useState("");
@@ -98,6 +100,22 @@ export default function InventoryPage() {
     }
   }
 
+  async function bulkForceDelete() {
+    if (forceConfirmText !== "DELETE") return;
+    setBusy(true);
+    setForceDeleteOpen(false);
+    setForceConfirmText("");
+    try {
+      const res = await api("/api/inventory/bulk", { method: "POST", body: JSON.stringify({ action: "forceDelete", ids: [...selArch] }) });
+      setBulkResult(res);
+      setSelArch(new Set()); loadArchived(); load();
+    } catch (e: any) {
+      setBulkResult({ error: e.message });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function doMerge() {
     if (!mergeTarget) return;
     setBusy(true);
@@ -148,6 +166,15 @@ export default function InventoryPage() {
               <span className="flex gap-2 flex-wrap">
                 <button className="btn-primary text-xs" onClick={bulkRestore} disabled={busy}>{t("bulkRestore")} ({selArch.size})</button>
                 <button className="btn-danger text-xs" onClick={bulkPermanentDelete} disabled={busy}>{busy ? t("processing") : `${t("bulkPermanentDelete")} (${selArch.size})`}</button>
+                {isAdmin && (
+                  <button
+                    className="text-xs border border-red-700 bg-red-900 text-white rounded-lg px-2 py-1 font-semibold hover:bg-red-800 disabled:opacity-50"
+                    onClick={() => { setForceConfirmText(""); setForceDeleteOpen(true); }}
+                    disabled={busy}
+                  >
+                    ⚠ {t("forceDeleteSelected")} ({selArch.size})
+                  </button>
+                )}
               </span>
             )}
           </div>
@@ -296,9 +323,49 @@ export default function InventoryPage() {
                     </ul>
                   </>
                 )}
+                {!bulkResult.forceDelete && bulkResult.failedCount > 0 && isAdmin && (
+                  <p className="text-xs text-red-700 border border-red-200 rounded-lg p-2 bg-red-50">
+                    ⚠ {t("forceDeleteWarning").split(".")[0]}. {t("typeDeleteToConfirm").toLowerCase()}.
+                  </p>
+                )}
               </>
             )}
             <button className="btn-primary w-full" onClick={() => setBulkResult(null)}>{t("save")}</button>
+          </div>
+        </div>
+      )}
+
+      {/* Force delete confirmation — admin only, requires typing DELETE */}
+      {forceDeleteOpen && isAdmin && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-40 p-4" onClick={() => setForceDeleteOpen(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-lg p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">⚠</span>
+              <h2 className="text-xl font-bold text-red-700">{t("forceDeleteSelected")}</h2>
+            </div>
+            <p className="text-sm text-red-800 bg-red-50 border border-red-200 rounded-xl p-3 leading-relaxed">
+              {t("forceDeleteWarning")}
+            </p>
+            <div className="space-y-1">
+              <p className="text-sm font-medium">{t("typeDeleteToConfirm")}:</p>
+              <Input
+                value={forceConfirmText}
+                onChange={(e) => setForceConfirmText(e.target.value)}
+                placeholder="DELETE"
+                className="font-mono"
+                autoFocus
+              />
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button
+                className="flex-1 bg-red-700 text-white rounded-xl py-2.5 font-semibold text-sm disabled:opacity-40 hover:bg-red-800"
+                onClick={bulkForceDelete}
+                disabled={forceConfirmText !== "DELETE" || busy}
+              >
+                {t("forceDeleteConfirmBtn")} ({selArch.size})
+              </button>
+              <button className="btn-ghost" onClick={() => setForceDeleteOpen(false)}>{t("cancel")}</button>
+            </div>
           </div>
         </div>
       )}

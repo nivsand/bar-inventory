@@ -1,12 +1,12 @@
 import { requireManager, requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ok, serverError, badRequest } from "@/lib/api";
-import { deleteOrArchiveItem, bulkHardDelete } from "@/server/archive";
+import { deleteOrArchiveItem, bulkHardDelete, forceDeleteItems } from "@/server/archive";
 import { logAudit } from "@/server/audit";
 import { z } from "zod";
 
 const schema = z.object({
-  action: z.enum(["archive", "restore", "category", "permanentDelete"]),
+  action: z.enum(["archive", "restore", "category", "permanentDelete", "forceDelete"]),
   ids: z.array(z.string().min(1)).min(1),
   categoryId: z.string().nullable().optional(),
 });
@@ -34,6 +34,22 @@ export async function POST(req: Request) {
 
       await logAudit({ userId: user.id, entity: "InventoryItem", entityId: ids.join(","), action: "DELETE", changes: { bulkPurge: { old: null, new: `${deleted.length} deleted, ${failed.length} kept` } } });
       return ok({ deletedCount: deleted.length, failedCount: failed.length, failed: failedDetailed });
+    }
+
+    if (action === "forceDelete") {
+      const user = await requireAdmin();
+      const items = await prisma.inventoryItem.findMany({ where: { id: { in: ids } }, select: { id: true, nameHe: true, nameEn: true } });
+      const byId = new Map(items.map((i) => [i.id, i]));
+
+      const { deleted, failed } = await forceDeleteItems(ids, user.id);
+
+      const failedDetailed = failed.map((f) => {
+        const it = byId.get(f.id);
+        return { id: f.id, nameHe: it?.nameHe ?? f.id, nameEn: it?.nameEn ?? f.id, reason: f.reasons.join(", ") };
+      });
+
+      await logAudit({ userId: user.id, entity: "InventoryItem", entityId: ids.join(","), action: "DELETE", changes: { forceDelete: { old: null, new: `${deleted.length} force-deleted, ${failed.length} failed` } } });
+      return ok({ deletedCount: deleted.length, failedCount: failed.length, failed: failedDetailed, forceDelete: true });
     }
 
     const user = await requireManager();

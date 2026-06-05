@@ -112,6 +112,60 @@ export async function bulkHardDelete(ids: string[]): Promise<BulkDeleteResult> {
   return { deleted: deletable, failed };
 }
 
+export type ForceDeleteResult = {
+  deleted: string[];
+  failed: { id: string; reasons: string[] }[];
+};
+
+/**
+ * ADMIN FORCE DELETE — destructive. Permanently removes the given items AND all
+ * dependent history rows that reference them, so the FK constraints are
+ * satisfied and the items can be deleted. ONLY operates on ARCHIVED items
+ * (isActive=false); active ids are rejected. Dependent rows are DELETED (not
+ * orphaned) so reports/history that join on them won't hit dangling references.
+ *
+ * Batched: a single transaction with set-based deleteMany across all ids, so it
+ * is fast regardless of how many items are selected.
+ */
+export async function forceDeleteItems(ids: string[], userId: string): Promise<ForceDeleteResult> {
+  if (ids.length === 0) return { deleted: [], failed: [] };
+
+  // Only archived items may be force-deleted.
+  const rows = await prisma.inventoryItem.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, isActive: true },
+  });
+  const found = new Set(rows.map((r) => r.id));
+  const archived = rows.filter((r) => !r.isActive).map((r) => r.id);
+  const failed: { id: string; reasons: string[] }[] = [];
+  for (const id of ids) {
+    if (!found.has(id)) failed.push({ id, reasons: ["not found"] });
+    else if (!archived.includes(id)) failed.push({ id, reasons: ["item is active — archive it first"] });
+  }
+  if (archived.length === 0) return { deleted: [], failed };
+
+  const where = { itemId: { in: archived } };
+  try {
+    await prisma.$transaction([
+      prisma.inventoryAdjustment.deleteMany({ where }),   // stock history / ledger
+      prisma.dailyCountEntry.deleteMany({ where }),
+      prisma.orderItem.deleteMany({ where }),
+      prisma.deliveryItem.deleteMany({ where }),
+      prisma.wasteEntry.deleteMany({ where }),
+      prisma.recipeIngredient.deleteMany({ where }),      // used-as-ingredient lines
+      prisma.menuRecipeItem.deleteMany({ where }),
+      prisma.prepItem.deleteMany({ where }),              // cascades Recipe + its ingredient lines
+      prisma.inventoryItem.deleteMany({ where: { id: { in: archived } } }),
+    ]);
+    void userId;
+    return { deleted: archived, failed };
+  } catch (e: any) {
+    // Whole batch rolled back — report the archived set as failed with the cause.
+    for (const id of archived) failed.push({ id, reasons: [e?.message || "delete error"] });
+    return { deleted: [], failed };
+  }
+}
+
 /**
  * Merge duplicate inventory items into one active target item. Safe:
  *  - Re-links recipe + menu ingredient lines from the duplicates to the target
