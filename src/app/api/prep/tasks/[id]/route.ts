@@ -1,7 +1,7 @@
 import { requireManager, requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ok, serverError } from "@/lib/api";
-import { applyAdjustment } from "@/server/stock";
+import { applyBatchAdjustments } from "@/server/stock";
 import { logAudit } from "@/server/audit";
 
 // PATCH a prep task.
@@ -23,12 +23,18 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         const produced = body.producedQty != null ? Number(body.producedQty) : task.targetQty;
         const yieldQty = task.prepItem.yieldQty || 1;
         const batches = yieldQty > 0 ? produced / yieldQty : produced;
-        // consume ingredients per the latest recipe
-        for (const ing of task.prepItem.recipe?.ingredients ?? []) {
-          await applyAdjustment(tx, { itemId: ing.itemId, delta: -ing.qtyPerYield * batches, source: "PREP_CONSUMPTION", refType: "PrepTask", refId: task.id, userId: user.id });
-        }
-        // produce the prep item
-        await applyAdjustment(tx, { itemId: task.prepItem.itemId, delta: produced, source: "PREP_PRODUCTION", refType: "PrepTask", refId: task.id, userId: user.id });
+
+        // Batch: 1 findMany + N updates + 1 createMany instead of 3N round trips.
+        const consumptions = (task.prepItem.recipe?.ingredients ?? []).map((ing) => ({
+          itemId: ing.itemId,
+          delta: -(ing.qtyPerYield * batches),
+          source: "PREP_CONSUMPTION" as const,
+          refType: "PrepTask", refId: task.id, userId: user.id,
+        }));
+        await applyBatchAdjustments(tx, [
+          ...consumptions,
+          { itemId: task.prepItem.itemId, delta: produced, source: "PREP_PRODUCTION" as const, refType: "PrepTask", refId: task.id, userId: user.id },
+        ]);
         await tx.prepTask.update({ where: { id: task.id }, data: { status: "DONE", producedQty: produced } });
       });
       await logAudit({ userId: user.id, entity: "PrepTask", entityId: params.id, action: "UPDATE", changes: { status: { old: null, new: "DONE" } } });

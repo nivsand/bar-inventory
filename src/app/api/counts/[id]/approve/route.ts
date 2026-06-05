@@ -1,7 +1,7 @@
 import { requireManager } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ok, serverError, badRequest } from "@/lib/api";
-import { setAbsoluteStock } from "@/server/stock";
+import { setBatchAbsoluteStock } from "@/server/stock";
 import { logAudit } from "@/server/audit";
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
@@ -16,13 +16,11 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       await prisma.dailyCount.update({ where: { id: params.id }, data: { status: "DRAFT" } });
     } else if (action === "APPROVE") {
       await prisma.$transaction(async (tx) => {
-        for (const e of count.entries) {
-          // Daily count is the source of truth -> set absolute stock.
-          await setAbsoluteStock(tx, {
-            itemId: e.itemId, countedQty: e.countedQty, source: "DAILY_COUNT",
-            refType: "DailyCount", refId: count.id, userId: user.id,
-          });
-        }
+        // Batch: 1 findMany + N updates + 1 createMany instead of 3N round trips.
+        await setBatchAbsoluteStock(tx, count.entries.map((e) => ({
+          itemId: e.itemId, countedQty: e.countedQty, source: "DAILY_COUNT" as const,
+          refType: "DailyCount", refId: count.id, userId: user.id,
+        })));
         await tx.dailyCount.update({
           where: { id: params.id },
           data: { status: "APPROVED", approvedById: user.id, approvedAt: new Date() },

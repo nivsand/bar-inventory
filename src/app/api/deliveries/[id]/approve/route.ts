@@ -1,7 +1,7 @@
 import { requireManager } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ok, serverError, badRequest } from "@/lib/api";
-import { applyAdjustment } from "@/server/stock";
+import { applyBatchAdjustments } from "@/server/stock";
 import { logAudit } from "@/server/audit";
 
 // Manager/Admin reviews a received-goods report.
@@ -26,14 +26,14 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       });
     } else if (action === "APPROVE") {
       await prisma.$transaction(async (tx) => {
-        for (const di of delivery.items) {
-          if (di.receivedQty > 0) {
-            await applyAdjustment(tx, {
-              itemId: di.itemId, delta: di.receivedQty, source: "DELIVERY",
-              refType: "Delivery", refId: delivery.id, userId: user.id,
-            });
-          }
-        }
+        // Batch: 1 findMany + N updates + 1 createMany instead of 3N round trips.
+        await applyBatchAdjustments(tx, delivery.items
+          .filter((di) => di.receivedQty > 0)
+          .map((di) => ({
+            itemId: di.itemId, delta: di.receivedQty, source: "DELIVERY" as const,
+            refType: "Delivery", refId: delivery.id, userId: user.id,
+          }))
+        );
         if (delivery.orderId) {
           const status = delivery.hasShortage ? "PARTIALLY_DELIVERED" : "ARRIVED";
           await tx.order.update({ where: { id: delivery.orderId }, data: { status } });

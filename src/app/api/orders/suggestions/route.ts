@@ -9,17 +9,20 @@ export async function GET() {
     await requireManager();
     const today = new Date();
 
-    const suppliers = await prisma.supplier.findMany({ where: { isActive: true } });
+    // Run all three independent DB queries in parallel instead of serially.
+    const [suppliers, rawItems, prepItems] = await Promise.all([
+      prisma.supplier.findMany({ where: { isActive: true } }),
+      prisma.inventoryItem.findMany({ where: { isActive: true, kind: "RAW" }, include: { supplier: true } }),
+      prisma.prepItem.findMany({
+        include: { item: true, recipe: { include: { ingredients: { include: { item: true } } } } },
+      }),
+    ]);
+
     const scheduleBySupplier = new Map<string, SupplierSchedule>(
       suppliers.map((s) => [s.id, { id: s.id, orderDeadlineDays: s.orderDeadlineDays, deliveryDays: s.deliveryDays, leadTimeDays: s.leadTimeDays }])
     );
 
-    const rawItems = await prisma.inventoryItem.findMany({ where: { isActive: true, kind: "RAW" }, include: { supplier: true } });
-
     // Prep demand: any ingredient needed to bring prep items up to par adds demand.
-    const prepItems = await prisma.prepItem.findMany({
-      include: { item: true, recipe: { include: { ingredients: { include: { item: true } } } } },
-    });
     const prepSuggestions = prepItems
       .map((p) => {
         if (!p.recipe) return null;

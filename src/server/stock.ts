@@ -40,3 +40,110 @@ export async function setAbsoluteStock(
   });
   return params.countedQty;
 }
+
+type AdjustmentInput = {
+  itemId: string;
+  delta: number;
+  source: AdjustmentSource;
+  refType?: string;
+  refId?: string;
+  userId?: string;
+  note?: string;
+};
+
+/**
+ * Batch version of applyAdjustment.
+ * 1 findMany + N updates + 1 createMany instead of 3N round trips.
+ * Handles multiple adjustments to the same item correctly (running total).
+ */
+export async function applyBatchAdjustments(
+  tx: Prisma.TransactionClient,
+  adjustments: AdjustmentInput[]
+) {
+  if (adjustments.length === 0) return;
+
+  const itemIds = [...new Set(adjustments.map((a) => a.itemId))];
+  const items = await tx.inventoryItem.findMany({
+    where: { id: { in: itemIds } },
+    select: { id: true, currentQty: true },
+  });
+  const qtyById = new Map(items.map((i) => [i.id, i.currentQty]));
+
+  // Compute result quantities in order, tracking running totals per item.
+  const results = adjustments.map((adj) => {
+    const current = qtyById.get(adj.itemId) ?? 0;
+    const resultQty = Math.round((current + adj.delta) * 1000) / 1000;
+    qtyById.set(adj.itemId, resultQty);
+    return { ...adj, resultQty };
+  });
+
+  // Update each item's stock (N updates, zero per-item reads).
+  for (const r of results) {
+    await tx.inventoryItem.update({ where: { id: r.itemId }, data: { currentQty: r.resultQty } });
+  }
+
+  // Single bulk insert for all ledger rows.
+  await tx.inventoryAdjustment.createMany({
+    data: results.map((r) => ({
+      itemId: r.itemId,
+      delta: r.delta,
+      resultQty: r.resultQty,
+      source: r.source,
+      refType: r.refType,
+      refId: r.refId,
+      userId: r.userId,
+      note: r.note,
+    })),
+  });
+}
+
+type AbsoluteStockInput = {
+  itemId: string;
+  countedQty: number;
+  source: AdjustmentSource;
+  refType?: string;
+  refId?: string;
+  userId?: string;
+  note?: string;
+};
+
+/**
+ * Batch version of setAbsoluteStock.
+ * 1 findMany + N updates + 1 createMany instead of 3N round trips.
+ */
+export async function setBatchAbsoluteStock(
+  tx: Prisma.TransactionClient,
+  adjustments: AbsoluteStockInput[]
+) {
+  if (adjustments.length === 0) return;
+
+  const itemIds = [...new Set(adjustments.map((a) => a.itemId))];
+  const items = await tx.inventoryItem.findMany({
+    where: { id: { in: itemIds } },
+    select: { id: true, currentQty: true },
+  });
+  const currentById = new Map(items.map((i) => [i.id, i.currentQty]));
+
+  const results = adjustments.map((adj) => {
+    const current = currentById.get(adj.itemId) ?? 0;
+    const delta = Math.round((adj.countedQty - current) * 1000) / 1000;
+    return { ...adj, delta, resultQty: adj.countedQty };
+  });
+
+  for (const r of results) {
+    await tx.inventoryItem.update({ where: { id: r.itemId }, data: { currentQty: r.resultQty } });
+  }
+
+  await tx.inventoryAdjustment.createMany({
+    data: results.map((r) => ({
+      itemId: r.itemId,
+      delta: r.delta,
+      resultQty: r.resultQty,
+      source: r.source,
+      refType: r.refType,
+      refId: r.refId,
+      userId: r.userId,
+      note: r.note,
+    })),
+  });
+}

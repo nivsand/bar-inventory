@@ -146,6 +146,7 @@ model Category {
   items InventoryItem[]
 
   @@index([kind])
+  @@index([isActive])
 }
 
 // ----------------------------- SUPPLIERS -----------------------------
@@ -231,6 +232,7 @@ model InventoryItem {
   usedInRecipes    RecipeIngredient[] @relation("IngredientItem")
   usedInMenu       MenuRecipeItem[]   @relation("MenuIngredientItem")
 
+  @@index([isActive])
   @@index([kind])
   @@index([supplierId])
   @@index([categoryId])
