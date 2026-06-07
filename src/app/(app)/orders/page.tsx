@@ -20,22 +20,21 @@ type MsgItem = Named & {
   orderUnitNameEn?: string | null;
   messageUnitHe?: string | null;
   messageUnitEn?: string | null;
-  showBaseQuantityInMessage?: boolean | null;
 };
 
 function qtyLabel(lang: string, i: MsgItem): string {
   const upo = i.unitsPerOrderUnit && i.unitsPerOrderUnit > 0 ? i.unitsPerOrderUnit : null;
+  const baseLabel = (lang === "en" ? i.messageUnitEn : i.messageUnitHe) || i.unit;
   if (upo) {
     const orderUnits = Math.ceil(i.orderedQty / upo);
-    const unitName = (lang === "en" ? i.orderUnitNameEn : i.orderUnitNameHe) || (lang === "en" ? "unit" : "יחידה");
-    if (i.showBaseQuantityInMessage) {
-      return `${orderUnits} ${unitName} (${i.orderedQty} ${i.unit})`;
+    const orderUnitName = (lang === "en" ? i.orderUnitNameEn : i.orderUnitNameHe) || (lang === "en" ? "unit" : "יחידה");
+    // Show parens only when order unit ≠ base unit (upo > 1 means 1 order unit = N base units)
+    if (upo > 1) {
+      return `${orderUnits} ${orderUnitName} (${i.orderedQty} ${baseLabel})`;
     }
-    return `${orderUnits} ${unitName}`;
+    return `${orderUnits} ${orderUnitName}`;
   }
-  // No order unit — use message-specific unit name if set, otherwise base unit
-  const displayUnit = (lang === "en" ? i.messageUnitEn : i.messageUnitHe) || i.unit;
-  return `${i.orderedQty} ${displayUnit}`;
+  return `${i.orderedQty} ${baseLabel}`;
 }
 
 function buildMessage(lang: string, supplier: Named, items: MsgItem[]) {
@@ -50,7 +49,6 @@ function mapItems(items: any[]): MsgItem[] {
     nameHe: oi.item.nameHe, nameEn: oi.item.nameEn, orderedQty: oi.orderedQty, unit: oi.unit,
     unitsPerOrderUnit: oi.item.unitsPerOrderUnit, orderUnitNameHe: oi.item.orderUnitNameHe, orderUnitNameEn: oi.item.orderUnitNameEn,
     messageUnitHe: oi.item.messageUnitHe, messageUnitEn: oi.item.messageUnitEn,
-    showBaseQuantityInMessage: oi.item.showBaseQuantityInMessage,
   }));
 }
 
@@ -111,7 +109,6 @@ export default function OrdersPage() {
       orderUnitNameEn: it.orderUnitNameEn,
       messageUnitHe: it.messageUnitHe,
       messageUnitEn: it.messageUnitEn,
-      showBaseQuantityInMessage: it.showBaseQuantityInMessage,
     }));
     const text = buildMessage(locale, group.supplier, msgItems);
     setMsg({ supplier: group.supplier, text });

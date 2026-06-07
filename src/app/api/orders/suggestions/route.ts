@@ -45,7 +45,7 @@ export async function GET() {
       currentQty: i.currentQty, minQty: i.minQty, parQty: i.parQty, avgDailyUsage: i.avgDailyUsage,
       packSize: i.packSize, orderMultiple: i.orderMultiple, supplierId: i.supplierId,
       unitsPerOrderUnit: i.unitsPerOrderUnit, orderUnitNameHe: i.orderUnitNameHe, orderUnitNameEn: i.orderUnitNameEn,
-      messageUnitHe: i.messageUnitHe, messageUnitEn: i.messageUnitEn, showBaseQuantityInMessage: i.showBaseQuantityInMessage,
+      messageUnitHe: i.messageUnitHe, messageUnitEn: i.messageUnitEn,
     }));
 
     const suggestions = buildSuggestions(inputs, scheduleBySupplier, today, extraDemand);
