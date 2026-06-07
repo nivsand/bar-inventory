@@ -61,6 +61,10 @@ export const dict = {
     forceDeleteWarning: "פעולה זו תמחק לצמיתות את הפריטים הנבחרים וכל ההיסטוריה הקשורה אליהם, כולל ספירות, הזמנות, קבלות סחורה, היסטוריית מלאי, רשומות פחת והתייחסויות במתכונים ותפריטים. לא ניתן לבטל פעולה זו.",
     typeDeleteToConfirm: "הקלידו DELETE לאישור",
     forceDeleteConfirmBtn: "מחיקה כפויה לצמיתות",
+    noItemsToOrderToday: "אין פריטים להזמנה היום",
+    showProducts: "הצג מוצרים",
+    hideProducts: "הסתר מוצרים",
+    createMessage: "יצירת הודעה",
   },
   en: {
     appName: "Bar Inventory",
@@ -123,6 +127,10 @@ export const dict = {
     forceDeleteWarning: "This will permanently delete the selected items and all related history, including counts, orders, deliveries, stock history, waste records, and recipe/menu references. This cannot be undone.",
     typeDeleteToConfirm: "Type DELETE to confirm",
     forceDeleteConfirmBtn: "Force delete permanently",
+    noItemsToOrderToday: "No items need ordering today",
+    showProducts: "Show products",
+    hideProducts: "Hide products",
+    createMessage: "Create message",
   },
 } as const;
 

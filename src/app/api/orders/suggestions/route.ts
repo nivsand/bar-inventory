@@ -8,6 +8,7 @@ export async function GET() {
   try {
     await requireManager();
     const today = new Date();
+    const dow = today.getDay();
 
     // Run all three independent DB queries in parallel instead of serially.
     const [suppliers, rawItems, prepItems] = await Promise.all([
@@ -44,15 +45,23 @@ export async function GET() {
       currentQty: i.currentQty, minQty: i.minQty, parQty: i.parQty, avgDailyUsage: i.avgDailyUsage,
       packSize: i.packSize, orderMultiple: i.orderMultiple, supplierId: i.supplierId,
       unitsPerOrderUnit: i.unitsPerOrderUnit, orderUnitNameHe: i.orderUnitNameHe, orderUnitNameEn: i.orderUnitNameEn,
+      messageUnitHe: i.messageUnitHe, messageUnitEn: i.messageUnitEn, showBaseQuantityInMessage: i.showBaseQuantityInMessage,
     }));
 
     const suggestions = buildSuggestions(inputs, scheduleBySupplier, today, extraDemand);
 
-    // Group by supplier
-    const bySupplier = suppliers.map((s) => ({
-      supplier: s,
-      items: suggestions.filter((sug) => rawItems.find((r) => r.id === sug.itemId)?.supplierId === s.id),
-    })).filter((g) => g.items.length > 0);
+    // Group by supplier. Always include suppliers scheduled today even with no shortages.
+    const scheduledTodayIds = new Set(suppliers.filter((s) => s.orderDeadlineDays.includes(dow)).map((s) => s.id));
+    const bySupplier = suppliers
+      .filter((s) => {
+        const hasItems = suggestions.some((sug) => rawItems.find((r) => r.id === sug.itemId)?.supplierId === s.id);
+        return hasItems || scheduledTodayIds.has(s.id);
+      })
+      .map((s) => ({
+        supplier: s,
+        items: suggestions.filter((sug) => rawItems.find((r) => r.id === sug.itemId)?.supplierId === s.id),
+        scheduledToday: scheduledTodayIds.has(s.id),
+      }));
 
     const noSupplier = suggestions.filter((sug) => !rawItems.find((r) => r.id === sug.itemId)?.supplierId);
 

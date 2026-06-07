@@ -208,6 +208,10 @@ model InventoryItem {
   orderUnitNameHe   String?
   orderUnitNameEn   String?
   unitsPerOrderUnit Float?             // base units per order unit (e.g. 10 cakes per box)
+  // Supplier message formatting
+  messageUnitHe     String?            // unit label in Hebrew for supplier messages (e.g. "ק״ג")
+  messageUnitEn     String?            // unit label in English for supplier messages
+  showBaseQuantityInMessage Boolean @default(false) // show base qty in parens: "1 box (10 kg)"
   avgDailyUsage Float    @default(0)   // rolling average consumption per day
   shelfLifeDays Int?                   // mainly for PREP items
   notes         String?

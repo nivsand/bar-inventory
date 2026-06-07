@@ -12,23 +12,32 @@ const STATUS_TONE: Record<string, string> = {
 };
 
 type Named = { nameHe?: string | null; nameEn?: string | null };
-type MsgItem = Named & { orderedQty: number; unit: string; unitsPerOrderUnit?: number | null; orderUnitNameHe?: string | null; orderUnitNameEn?: string | null };
+type MsgItem = Named & {
+  orderedQty: number;
+  unit: string;
+  unitsPerOrderUnit?: number | null;
+  orderUnitNameHe?: string | null;
+  orderUnitNameEn?: string | null;
+  messageUnitHe?: string | null;
+  messageUnitEn?: string | null;
+  showBaseQuantityInMessage?: boolean | null;
+};
 
-// Format a quantity for a line: if the item is sold in order units (e.g. boxes
-// of 10), show "1 box (10 cakes)"; otherwise just the base quantity.
 function qtyLabel(lang: string, i: MsgItem): string {
   const upo = i.unitsPerOrderUnit && i.unitsPerOrderUnit > 0 ? i.unitsPerOrderUnit : null;
   if (upo) {
-    const boxes = Math.ceil(i.orderedQty / upo);
+    const orderUnits = Math.ceil(i.orderedQty / upo);
     const unitName = (lang === "en" ? i.orderUnitNameEn : i.orderUnitNameHe) || (lang === "en" ? "unit" : "יחידה");
-    return `${boxes} ${unitName} (${i.orderedQty} ${i.unit})`;
+    if (i.showBaseQuantityInMessage) {
+      return `${orderUnits} ${unitName} (${i.orderedQty} ${i.unit})`;
+    }
+    return `${orderUnits} ${unitName}`;
   }
-  return `${i.orderedQty} ${i.unit}`;
+  // No order unit — use message-specific unit name if set, otherwise base unit
+  const displayUnit = (lang === "en" ? i.messageUnitEn : i.messageUnitHe) || i.unit;
+  return `${i.orderedQty} ${displayUnit}`;
 }
 
-// Hebrew by default; English only when the UI language is English. Names are
-// taken in the message language (not the relation's UI locale) so a Hebrew
-// message uses Hebrew names even if an English UI generated it.
 function buildMessage(lang: string, supplier: Named, items: MsgItem[]) {
   const pick = (e: Named) => (lang === "en" ? e.nameEn || e.nameHe : e.nameHe || e.nameEn) || "";
   const lines = items.map((i) => `• ${pick(i)}: ${qtyLabel(lang, i)}`).join("\n");
@@ -40,6 +49,8 @@ function mapItems(items: any[]): MsgItem[] {
   return items.map((oi) => ({
     nameHe: oi.item.nameHe, nameEn: oi.item.nameEn, orderedQty: oi.orderedQty, unit: oi.unit,
     unitsPerOrderUnit: oi.item.unitsPerOrderUnit, orderUnitNameHe: oi.item.orderUnitNameHe, orderUnitNameEn: oi.item.orderUnitNameEn,
+    messageUnitHe: oi.item.messageUnitHe, messageUnitEn: oi.item.messageUnitEn,
+    showBaseQuantityInMessage: oi.item.showBaseQuantityInMessage,
   }));
 }
 
@@ -56,6 +67,7 @@ export default function OrdersPage() {
   const [msg, setMsg] = useState<{ supplier: any; text: string } | null>(null);
   const [addTo, setAddTo] = useState<string | null>(null);
   const [addForm, setAddForm] = useState<{ itemId: string; qty: string }>({ itemId: "", qty: "" });
+  const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
 
   const load = () => Promise.all([api("/api/orders/suggestions"), api("/api/orders"), api("/api/inventory")])
     .then(([s, o, inv]) => {
@@ -66,18 +78,43 @@ export default function OrdersPage() {
     });
   useEffect(() => { load(); }, []);
 
+  function toggleOrderExpand(id: string) {
+    setExpandedOrders((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  // Creates the order record only — does NOT open the message modal.
   async function createOrder(group: any) {
+    if (!group.items.length) return;
     const items = group.items.map((it: any) => ({
       itemId: it.itemId, suggestedQty: it.suggestedQty, orderedQty: qty[it.itemId] ?? it.suggestedQty,
       currentQty: it.currentQty, minQty: it.minQty, reason: it.reason, unit: it.unit,
     }));
-    // Create the order as OPEN (NEED_TO_ORDER). The manager reviews the message
-    // and then explicitly marks it as sent — we no longer auto-send.
     const order = await api("/api/orders", { method: "POST", body: JSON.stringify({ supplierId: group.supplier.id, items, channel: group.supplier.orderingMethod }) });
     const text = buildMessage(locale, group.supplier, mapItems(order.items));
     await api(`/api/orders/${order.id}`, { method: "PATCH", body: JSON.stringify({ messageBody: text }) });
-    setMsg({ supplier: group.supplier, text });
     load();
+  }
+
+  // Builds a supplier message from current suggestions — does NOT create an order.
+  function createMessage(group: any) {
+    if (!group.items.length) return;
+    const msgItems: MsgItem[] = group.items.map((it: any) => ({
+      nameHe: it.nameHe, nameEn: it.nameEn,
+      orderedQty: qty[it.itemId] ?? it.suggestedQty,
+      unit: it.unit,
+      unitsPerOrderUnit: it.unitsPerOrderUnit,
+      orderUnitNameHe: it.orderUnitNameHe,
+      orderUnitNameEn: it.orderUnitNameEn,
+      messageUnitHe: it.messageUnitHe,
+      messageUnitEn: it.messageUnitEn,
+      showBaseQuantityInMessage: it.showBaseQuantityInMessage,
+    }));
+    const text = buildMessage(locale, group.supplier, msgItems);
+    setMsg({ supplier: group.supplier, text });
   }
 
   async function markSent(id: string) {
@@ -118,35 +155,46 @@ export default function OrdersPage() {
         {sugg.bySupplier.length === 0 && <Card><p className="text-gray-400">{t("noData")}</p></Card>}
         {sugg.bySupplier.map((g: any) => (
           <Card key={g.supplier.id}>
-            <div className="flex justify-between items-center mb-3">
+            <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
               <h3 className="font-semibold">{name(g.supplier)} <span className="text-gray-400 text-sm">· {g.supplier.orderingMethod}</span></h3>
-              <button className="btn-primary text-sm" onClick={() => createOrder(g)}>{t("generateOrder")}</button>
+              <div className="flex gap-2">
+                {g.items.length > 0 && isManager && (
+                  <>
+                    <button className="btn-ghost text-sm" onClick={() => createMessage(g)}>{t("createMessage")}</button>
+                    <button className="btn-primary text-sm" onClick={() => createOrder(g)}>{t("generateOrder")}</button>
+                  </>
+                )}
+              </div>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="text-gray-500"><tr>
-                  <th className="text-start p-2">{t("item")}</th><th className="p-2">{t("current")}</th>
-                  <th className="p-2">{t("min")}</th><th className="p-2">{t("suggestedQty")}</th><th className="text-start p-2">{t("reason")}</th>
-                </tr></thead>
-                <tbody>{g.items.map((it: any) => (
-                  <tr key={it.itemId} className="border-t">
-                    <td className="p-2">{name(it)}</td>
-                    <td className="p-2 text-center">{it.currentQty} {it.unit}</td>
-                    <td className="p-2 text-center text-gray-500">{it.minQty}</td>
-                    <td className="p-2 text-center">
-                      <input className="touch-input h-10 w-20 text-center" type="number"
-                        value={qty[it.itemId] ?? it.suggestedQty} onChange={(e) => setQty((q) => ({ ...q, [it.itemId]: Number(e.target.value) }))} />
-                      {it.orderUnitQty && it.unitsPerOrderUnit ? (
-                        <div className="text-[11px] text-brand-700 mt-0.5">
-                          {Math.ceil((qty[it.itemId] ?? it.suggestedQty) / it.unitsPerOrderUnit)} {(locale === "en" ? it.orderUnitNameEn : it.orderUnitNameHe) || ""}
-                        </div>
-                      ) : null}
-                    </td>
-                    <td className="p-2 text-xs text-gray-500">{it.reason}</td>
-                  </tr>
-                ))}</tbody>
-              </table>
-            </div>
+            {g.items.length === 0 ? (
+              <p className="text-sm text-gray-400">{t("noItemsToOrderToday")}</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="text-gray-500"><tr>
+                    <th className="text-start p-2">{t("item")}</th><th className="p-2">{t("current")}</th>
+                    <th className="p-2">{t("min")}</th><th className="p-2">{t("suggestedQty")}</th><th className="text-start p-2">{t("reason")}</th>
+                  </tr></thead>
+                  <tbody>{g.items.map((it: any) => (
+                    <tr key={it.itemId} className="border-t">
+                      <td className="p-2">{name(it)}</td>
+                      <td className="p-2 text-center">{it.currentQty} {it.unit}</td>
+                      <td className="p-2 text-center text-gray-500">{it.minQty}</td>
+                      <td className="p-2 text-center">
+                        <input className="touch-input h-10 w-20 text-center" type="number"
+                          value={qty[it.itemId] ?? it.suggestedQty} onChange={(e) => setQty((q) => ({ ...q, [it.itemId]: Number(e.target.value) }))} />
+                        {it.orderUnitQty && it.unitsPerOrderUnit ? (
+                          <div className="text-[11px] text-brand-700 mt-0.5">
+                            {Math.ceil((qty[it.itemId] ?? it.suggestedQty) / it.unitsPerOrderUnit)} {(locale === "en" ? it.orderUnitNameEn : it.orderUnitNameHe) || ""}
+                          </div>
+                        ) : null}
+                      </td>
+                      <td className="p-2 text-xs text-gray-500">{it.reason}</td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </div>
+            )}
           </Card>
         ))}
       </section>
@@ -161,6 +209,7 @@ export default function OrdersPage() {
           {sectionDef.list.map((o) => {
             const isOpen = o.status === "NEED_TO_ORDER";
             const editable = o.status !== "CANCELLED" && o.status !== "ARRIVED";
+            const expanded = expandedOrders.has(o.id);
             return (
               <Card key={o.id}>
                 <div className="flex justify-between items-center gap-2 flex-wrap">
@@ -182,13 +231,10 @@ export default function OrdersPage() {
                   </div>
                 </div>
 
-                <ul className="mt-2 text-sm text-gray-600">
-                  {o.items.map((oi: any) => (
-                    <li key={oi.id} className="flex justify-between"><span>{name(oi.item)}</span><span>{oi.orderedQty} {oi.unit}</span></li>
-                  ))}
-                </ul>
-
                 <div className="flex flex-wrap gap-2 mt-2 items-center">
+                  <button className="text-brand-600 text-sm" onClick={() => toggleOrderExpand(o.id)}>
+                    {expanded ? t("hideProducts") : `${t("showProducts")} (${o.items.length})`}
+                  </button>
                   <button className="text-brand-600 text-sm" onClick={() => openMessage(o)}>{t("copyMessage")}</button>
                   {isManager && editable && (
                     addTo === o.id ? (
@@ -206,6 +252,14 @@ export default function OrdersPage() {
                     )
                   )}
                 </div>
+
+                {expanded && (
+                  <ul className="mt-2 text-sm text-gray-600 border-t pt-2">
+                    {o.items.map((oi: any) => (
+                      <li key={oi.id} className="flex justify-between py-0.5"><span>{name(oi.item)}</span><span>{oi.orderedQty} {oi.unit}</span></li>
+                    ))}
+                  </ul>
+                )}
               </Card>
             );
           })}
