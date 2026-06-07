@@ -208,11 +208,10 @@ model InventoryItem {
   orderUnitNameHe   String?
   orderUnitNameEn   String?
   unitsPerOrderUnit Float?             // base units per order unit (e.g. 10 cakes per box)
-  // Supplier message formatting — Hebrew/English label for the base unit in messages.
-  // Only needed when the system `unit` field is English but the message should use a Hebrew label.
-  // Parens are shown automatically when unitsPerOrderUnit > 1 (order unit ≠ base unit).
-  messageUnitHe     String?
-  messageUnitEn     String?
+  // Supplier message formatting
+  messageUnitHe     String?   // Hebrew label for the base unit in parentheticals (e.g. "בקבוקים")
+  messageUnitEn     String?   // English label for the base unit in parentheticals
+  showBaseQuantityInMessage Boolean @default(false) // if true: "1 קופסה (24 בקבוקים)"; if false: "1 קופסה"
   avgDailyUsage Float    @default(0)   // rolling average consumption per day
   shelfLifeDays Int?                   // mainly for PREP items
   notes         String?

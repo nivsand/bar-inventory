@@ -54,6 +54,8 @@ const schema = z.object({
   orderMultiple: z.coerce.number().nullable().optional(), shelfLifeDays: z.coerce.number().nullable().optional(),
   orderUnitNameHe: z.string().nullable().optional(), orderUnitNameEn: z.string().nullable().optional(),
   unitsPerOrderUnit: z.coerce.number().nullable().optional(),
+  messageUnitHe: z.string().nullable().optional(), messageUnitEn: z.string().nullable().optional(),
+  showBaseQuantityInMessage: z.boolean().default(false),
   notes: z.string().nullable().optional(),
 });
 

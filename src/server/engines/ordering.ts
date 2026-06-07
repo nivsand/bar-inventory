@@ -29,6 +29,7 @@ export type OrderingItemInput = {
   // Supplier message formatting
   messageUnitHe?: string | null;
   messageUnitEn?: string | null;
+  showBaseQuantityInMessage?: boolean | null;
   supplierId?: string | null;
 };
 
@@ -54,6 +55,7 @@ export type OrderSuggestion = {
   orderUnitNameEn: string | null;
   messageUnitHe: string | null;
   messageUnitEn: string | null;
+  showBaseQuantityInMessage: boolean;
   daysUntilDelivery: number;
   projectedAtDelivery: number;
   reasonKey: ReasonKey;
@@ -140,6 +142,7 @@ export function suggestForItem(
     orderUnitNameEn: item.orderUnitNameEn ?? null,
     messageUnitHe: item.messageUnitHe ?? null,
     messageUnitEn: item.messageUnitEn ?? null,
+    showBaseQuantityInMessage: item.showBaseQuantityInMessage ?? false,
     daysUntilDelivery,
     projectedAtDelivery: Math.round(projectedAtDelivery * 100) / 100,
     reasonKey,

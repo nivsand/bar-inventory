@@ -20,6 +20,7 @@ type MsgItem = Named & {
   orderUnitNameEn?: string | null;
   messageUnitHe?: string | null;
   messageUnitEn?: string | null;
+  showBaseQuantityInMessage?: boolean | null;
 };
 
 function qtyLabel(lang: string, i: MsgItem): string {
@@ -28,8 +29,7 @@ function qtyLabel(lang: string, i: MsgItem): string {
   if (upo) {
     const orderUnits = Math.ceil(i.orderedQty / upo);
     const orderUnitName = (lang === "en" ? i.orderUnitNameEn : i.orderUnitNameHe) || (lang === "en" ? "unit" : "יחידה");
-    // Show parens only when order unit ≠ base unit (upo > 1 means 1 order unit = N base units)
-    if (upo > 1) {
+    if (i.showBaseQuantityInMessage) {
       return `${orderUnits} ${orderUnitName} (${i.orderedQty} ${baseLabel})`;
     }
     return `${orderUnits} ${orderUnitName}`;
@@ -49,6 +49,7 @@ function mapItems(items: any[]): MsgItem[] {
     nameHe: oi.item.nameHe, nameEn: oi.item.nameEn, orderedQty: oi.orderedQty, unit: oi.unit,
     unitsPerOrderUnit: oi.item.unitsPerOrderUnit, orderUnitNameHe: oi.item.orderUnitNameHe, orderUnitNameEn: oi.item.orderUnitNameEn,
     messageUnitHe: oi.item.messageUnitHe, messageUnitEn: oi.item.messageUnitEn,
+    showBaseQuantityInMessage: oi.item.showBaseQuantityInMessage,
   }));
 }
 
@@ -109,6 +110,7 @@ export default function OrdersPage() {
       orderUnitNameEn: it.orderUnitNameEn,
       messageUnitHe: it.messageUnitHe,
       messageUnitEn: it.messageUnitEn,
+      showBaseQuantityInMessage: it.showBaseQuantityInMessage,
     }));
     const text = buildMessage(locale, group.supplier, msgItems);
     setMsg({ supplier: group.supplier, text });

@@ -7,7 +7,9 @@ import { Card, Input, Field, Spinner } from "@/components/ui";
 
 const blank = { nameHe: "", nameEn: "", unit: "kg", kind: "RAW", area: "KITCHEN", inCount: true,
   categoryId: "", supplierId: "", currentQty: 0, minQty: 0, parQty: 0, avgDailyUsage: 0,
-  orderUnitNameHe: "", orderUnitNameEn: "", unitsPerOrderUnit: "", notes: "" };
+  orderUnitNameHe: "", orderUnitNameEn: "", unitsPerOrderUnit: "",
+  messageUnitHe: "", messageUnitEn: "", showBaseQuantityInMessage: false,
+  notes: "" };
 
 export default function InventoryPage() {
   const { t, name } = useI18n();
@@ -46,6 +48,8 @@ export default function InventoryPage() {
       avgDailyUsage: Number(editing.avgDailyUsage),
       unitsPerOrderUnit: editing.unitsPerOrderUnit === "" || editing.unitsPerOrderUnit == null ? null : Number(editing.unitsPerOrderUnit),
       orderUnitNameHe: editing.orderUnitNameHe || null, orderUnitNameEn: editing.orderUnitNameEn || null,
+      messageUnitHe: editing.messageUnitHe || null, messageUnitEn: editing.messageUnitEn || null,
+      showBaseQuantityInMessage: !!editing.showBaseQuantityInMessage,
       categoryId: editing.categoryId || null, supplierId: editing.supplierId || null };
     if (editing.id) await api(`/api/inventory/${editing.id}`, { method: "PATCH", body: JSON.stringify(body) });
     else await api("/api/inventory", { method: "POST", body: JSON.stringify(body) });
@@ -284,6 +288,18 @@ export default function InventoryPage() {
                 <Field label="Order unit (EN)"><Input value={editing.orderUnitNameEn || ""} placeholder="box" onChange={(e) => setEditing({ ...editing, orderUnitNameEn: e.target.value })} /></Field>
                 <Field label={t("unitsPerOrderUnit")}><Input type="number" value={editing.unitsPerOrderUnit ?? ""} placeholder="10" onChange={(e) => setEditing({ ...editing, unitsPerOrderUnit: e.target.value })} /></Field>
               </div>
+            </div>
+            <div className="border-t pt-2">
+              <p className="text-sm font-medium text-gray-600 mb-2">{t("supplierMessage")}</p>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="יח' בסיס בהודעה (עב)"><Input value={editing.messageUnitHe || ""} placeholder="בקבוקים" onChange={(e) => setEditing({ ...editing, messageUnitHe: e.target.value })} /></Field>
+                <Field label="Base unit in msg (EN)"><Input value={editing.messageUnitEn || ""} placeholder="bottles" onChange={(e) => setEditing({ ...editing, messageUnitEn: e.target.value })} /></Field>
+              </div>
+              <label className="flex items-center gap-2 mt-3 text-sm cursor-pointer">
+                <input type="checkbox" checked={!!editing.showBaseQuantityInMessage}
+                  onChange={(e) => setEditing({ ...editing, showBaseQuantityInMessage: e.target.checked })} />
+                {t("showBaseQtyInMessage")}
+              </label>
             </div>
             <Field label={t("notes")}><Input value={editing.notes || ""} onChange={(e) => setEditing({ ...editing, notes: e.target.value })} /></Field>
             <div className="flex gap-2 pt-2">

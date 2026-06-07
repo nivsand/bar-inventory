@@ -29,6 +29,9 @@ const patchSchema = z.object({
   orderUnitNameHe: z.string().nullable().optional(),
   orderUnitNameEn: z.string().nullable().optional(),
   unitsPerOrderUnit: z.coerce.number().nullable().optional(),
+  messageUnitHe: z.string().nullable().optional(),
+  messageUnitEn: z.string().nullable().optional(),
+  showBaseQuantityInMessage: z.boolean().optional(),
   notes: z.string().nullable().optional(),
   isActive: z.boolean().optional(), // used by archive restore
 }).strip();

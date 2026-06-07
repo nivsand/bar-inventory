@@ -65,6 +65,8 @@ export const dict = {
     showProducts: "הצג מוצרים",
     hideProducts: "הסתר מוצרים",
     createMessage: "יצירת הודעה",
+    supplierMessage: "הודעה לספק",
+    showBaseQtyInMessage: "הצג כמות בסיס בהודעה לספק",
   },
   en: {
     appName: "Bar Inventory",
@@ -131,6 +133,8 @@ export const dict = {
     showProducts: "Show products",
     hideProducts: "Hide products",
     createMessage: "Create message",
+    supplierMessage: "Supplier message",
+    showBaseQtyInMessage: "Show base quantity in supplier message",
   },
 } as const;
 
