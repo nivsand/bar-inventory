@@ -17,6 +17,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       include: {
         countedBy: { select: { name: true, email: true } },
         approvedBy: { select: { name: true } },
+        location: true,
         entries: {
           include: { item: { select: { nameHe: true, nameEn: true, unit: true, area: true } } },
           orderBy: { item: { nameEn: "asc" } },

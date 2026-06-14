@@ -17,7 +17,7 @@ const STATUS_TONE: Record<string, string> = {
 // (status / employee / date) and a full detail+review modal. Always fetches
 // fresh from the server.
 export function CountHistory() {
-  const { t } = useI18n();
+  const { t, name } = useI18n();
   const { data: session } = useSession();
   const isManager = ["MANAGER", "ADMIN"].includes((session?.user as any)?.role);
 
@@ -71,6 +71,7 @@ export function CountHistory() {
             <thead className="bg-gray-50 text-gray-500"><tr>
               <th className="text-start p-3 whitespace-nowrap">{t("date")}</th>
               <th className="text-start p-3">{t("employee")}</th>
+              <th className="p-3">{t("location")}</th>
               <th className="p-3">{t("item")}</th>
               <th className="p-3">{t("status")}</th>
               <th className="p-3"></th>
@@ -79,6 +80,7 @@ export function CountHistory() {
               <tr key={c.id} className="border-t">
                 <td className="p-3 whitespace-nowrap">{new Date(c.submittedAt || c.businessDay).toLocaleString()}</td>
                 <td className="p-3">{c.countedBy?.name}</td>
+                <td className="p-3 text-center text-gray-500">{c.location ? name(c.location) : t("fullCount")}</td>
                 <td className="p-3 text-center text-gray-500">{c._count?.entries}</td>
                 <td className="p-3 text-center"><span className={`badge ${STATUS_TONE[c.status] || "bg-gray-100"}`}>{c.status}</span></td>
                 <td className="p-3 text-end"><button className="text-brand-600" onClick={() => openDetail(c.id)}>{t("viewDetails")}</button></td>

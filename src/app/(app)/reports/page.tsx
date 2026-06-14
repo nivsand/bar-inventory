@@ -5,6 +5,7 @@ import { TKey } from "@/lib/i18n/translations";
 import { api } from "@/lib/fetcher";
 import { Card, Spinner } from "@/components/ui";
 import { PieChart, Slice } from "@/components/PieChart";
+import { SalesReports } from "@/components/SalesReports";
 
 const REPORTS: { type: string; labelKey: TKey }[] = [
   { type: "inventory", labelKey: "reportInventory" },
@@ -12,6 +13,7 @@ const REPORTS: { type: string; labelKey: TKey }[] = [
   { type: "waste", labelKey: "reportWasteH" },
   { type: "orders", labelKey: "reportOrders" },
   { type: "deliveries", labelKey: "reportDeliveries" },
+  { type: "sales", labelKey: "salesReports" },
 ];
 
 // How each report aggregates into a pie chart: label column, value column
@@ -45,6 +47,7 @@ export default function ReportsPage() {
   const [rows, setRows] = useState<any[] | null>(null);
 
   useEffect(() => {
+    if (active === "sales") return;
     setRows(null);
     api(`/api/reports/${active}?format=json`).then((d) => setRows(d.rows)).catch(() => setRows([]));
   }, [active]);
@@ -65,38 +68,44 @@ export default function ReportsPage() {
         ))}
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="inline-flex rounded-xl bg-gray-100 p-1">
-          {(["table", "chart"] as const).map((v) => (
-            <button key={v} onClick={() => setView(v)}
-              className={`px-4 py-1.5 rounded-lg text-sm font-medium ${view === v ? "bg-white shadow text-brand-700" : "text-gray-500"}`}>
-              {t(v === "table" ? "tableView" : "chartView")}
-            </button>
-          ))}
-        </div>
-        <a className="btn-ghost text-sm" href={`/api/reports/${active}?format=csv`}>{t("export")} CSV</a>
-      </div>
-
-      <Card className="p-0 overflow-x-auto">
-        {rows === null ? (
-          <div className="flex justify-center py-12"><Spinner /></div>
-        ) : rows.length === 0 ? (
-          <p className="p-4 text-gray-400">{t("noData")}</p>
-        ) : view === "chart" ? (
-          <PieChart data={slices} />
-        ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-gray-500"><tr>{headers.map((h) => <th key={h} className="text-start p-3 whitespace-nowrap">{h}</th>)}</tr></thead>
-            <tbody>
-              {rows.map((row, i) => (
-                <tr key={i} className="border-t">
-                  {headers.map((h) => <td key={h} className="p-3 whitespace-nowrap">{formatCell(row[h])}</td>)}
-                </tr>
+      {active === "sales" ? (
+        <SalesReports />
+      ) : (
+        <>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="inline-flex rounded-xl bg-gray-100 p-1">
+              {(["table", "chart"] as const).map((v) => (
+                <button key={v} onClick={() => setView(v)}
+                  className={`px-4 py-1.5 rounded-lg text-sm font-medium ${view === v ? "bg-white shadow text-brand-700" : "text-gray-500"}`}>
+                  {t(v === "table" ? "tableView" : "chartView")}
+                </button>
               ))}
-            </tbody>
-          </table>
-        )}
-      </Card>
+            </div>
+            <a className="btn-ghost text-sm" href={`/api/reports/${active}?format=csv`}>{t("export")} CSV</a>
+          </div>
+
+          <Card className="p-0 overflow-x-auto">
+            {rows === null ? (
+              <div className="flex justify-center py-12"><Spinner /></div>
+            ) : rows.length === 0 ? (
+              <p className="p-4 text-gray-400">{t("noData")}</p>
+            ) : view === "chart" ? (
+              <PieChart data={slices} />
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 text-gray-500"><tr>{headers.map((h) => <th key={h} className="text-start p-3 whitespace-nowrap">{h}</th>)}</tr></thead>
+                <tbody>
+                  {rows.map((row, i) => (
+                    <tr key={i} className="border-t">
+                      {headers.map((h) => <td key={h} className="p-3 whitespace-nowrap">{formatCell(row[h])}</td>)}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </Card>
+        </>
+      )}
     </div>
   );
 }

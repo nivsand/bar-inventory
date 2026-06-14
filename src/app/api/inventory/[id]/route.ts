@@ -19,6 +19,7 @@ const patchSchema = z.object({
   inCount: z.boolean().optional(),
   categoryId: z.string().nullable().optional(),
   supplierId: z.string().nullable().optional(),
+  locationId: z.string().nullable().optional(),
   currentQty: z.coerce.number().optional(),
   minQty: z.coerce.number().optional(),
   parQty: z.coerce.number().optional(),

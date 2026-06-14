@@ -12,12 +12,14 @@ export async function GET(req: Request) {
     const sp = new URL(req.url).searchParams;
     const status = sp.get("status") || undefined;       // DRAFT/SUBMITTED/APPROVED/REJECTED
     const employeeId = sp.get("employeeId") || undefined;
+    const locationId = sp.get("locationId") || undefined; // filter by location (full counts have locationId = null)
     const from = sp.get("from");
     const to = sp.get("to");
 
     const where: any = {};
     if (status) where.status = status;
     if (employeeId) where.countedById = employeeId;
+    if (locationId) where.locationId = locationId === "null" ? null : locationId;
     if (from || to) {
       where.businessDay = {};
       if (from) where.businessDay.gte = new Date(from);
@@ -26,7 +28,7 @@ export async function GET(req: Request) {
 
     const counts = await prisma.dailyCount.findMany({
       where,
-      include: { countedBy: true, approvedBy: true, _count: { select: { entries: true } } },
+      include: { countedBy: true, approvedBy: true, location: true, _count: { select: { entries: true } } },
       orderBy: [{ businessDay: "desc" }, { createdAt: "desc" }],
       take: 300,
     });
@@ -41,9 +43,10 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => ({}));
     const day = body.businessDay ? new Date(body.businessDay) : new Date();
     day.setHours(0, 0, 0, 0);
+    const locationId = body.locationId || null; // null = full count
     const count = await prisma.dailyCount.create({
-      data: { businessDay: day, countedById: user.id, status: "DRAFT" },
-      include: { entries: true },
+      data: { businessDay: day, countedById: user.id, status: "DRAFT", locationId },
+      include: { entries: true, location: true },
     });
     return created(count);
   } catch (e) { return serverError(e); }

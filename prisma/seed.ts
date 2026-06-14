@@ -150,6 +150,21 @@ async function main() {
     ],
   });
 
+  // --- Locations (Phase 1: location-based counts) ---
+  const locations: [string, string, number][] = [
+    ["מקפיא", "Freezer", 1],
+    ["מקרר", "Refrigerator", 2],
+    ["בר", "Bar", 3],
+    ["מטבח", "Kitchen", 4],
+    ["מחסן יבש", "Dry Storage", 5],
+    ["מחסן חומרי ניקיון", "Cleaning Supplies Storage", 6],
+  ];
+  for (const [nameHe, nameEn, sortOrder] of locations) {
+    await prisma.location.upsert({
+      where: { nameEn }, update: {}, create: { nameHe, nameEn, sortOrder },
+    });
+  }
+
   // --- Settings ---
   await prisma.setting.upsert({
     where: { key: "defaultLocale" }, update: {}, create: { key: "defaultLocale", value: "he" },

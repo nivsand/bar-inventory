@@ -6,7 +6,7 @@ import { api } from "@/lib/fetcher";
 import { Card, Input, Field, Spinner } from "@/components/ui";
 
 const blank = { nameHe: "", nameEn: "", unit: "kg", kind: "RAW", area: "KITCHEN", inCount: true,
-  categoryId: "", supplierId: "", currentQty: 0, minQty: 0, parQty: 0, avgDailyUsage: 0,
+  categoryId: "", supplierId: "", locationId: "", currentQty: 0, minQty: 0, parQty: 0, avgDailyUsage: 0,
   orderUnitNameHe: "", orderUnitNameEn: "", unitsPerOrderUnit: "",
   messageUnitHe: "", messageUnitEn: "", showBaseQuantityInMessage: false,
   notes: "" };
@@ -20,6 +20,7 @@ export default function InventoryPage() {
   const [items, setItems] = useState<any[]>([]);
   const [cats, setCats] = useState<any[]>([]);
   const [sups, setSups] = useState<any[]>([]);
+  const [locs, setLocs] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [areaTab, setAreaTab] = useState<"KITCHEN" | "FLOOR">("KITCHEN");
   const [editing, setEditing] = useState<any | null>(null);
@@ -38,7 +39,7 @@ export default function InventoryPage() {
 
   const load = () => api("/api/inventory").then((d) => { setItems(d); setLoading(false); });
   const loadArchived = () => api("/api/inventory?archived=1").then(setArchived);
-  useEffect(() => { load(); api("/api/categories").then(setCats); api("/api/suppliers").then(setSups); }, []);
+  useEffect(() => { load(); api("/api/categories").then(setCats); api("/api/suppliers").then(setSups); api("/api/locations").then(setLocs); }, []);
 
   function toggleArchived() { const n = !showArchived; setShowArchived(n); if (n) loadArchived(); }
 
@@ -50,7 +51,8 @@ export default function InventoryPage() {
       orderUnitNameHe: editing.orderUnitNameHe || null, orderUnitNameEn: editing.orderUnitNameEn || null,
       messageUnitHe: editing.messageUnitHe || null, messageUnitEn: editing.messageUnitEn || null,
       showBaseQuantityInMessage: !!editing.showBaseQuantityInMessage,
-      categoryId: editing.categoryId || null, supplierId: editing.supplierId || null };
+      categoryId: editing.categoryId || null, supplierId: editing.supplierId || null,
+      locationId: editing.locationId || null };
     if (editing.id) await api(`/api/inventory/${editing.id}`, { method: "PATCH", body: JSON.stringify(body) });
     else await api("/api/inventory", { method: "POST", body: JSON.stringify(body) });
     setEditing(null); load();
@@ -269,6 +271,11 @@ export default function InventoryPage() {
               <Field label={t("area")}>
                 <select className="touch-input" value={editing.area || "KITCHEN"} onChange={(e) => setEditing({ ...editing, area: e.target.value })}>
                   <option value="KITCHEN">{t("kitchen")}</option><option value="FLOOR">{t("floor")}</option>
+                </select>
+              </Field>
+              <Field label={t("location")}>
+                <select className="touch-input" value={editing.locationId || ""} onChange={(e) => setEditing({ ...editing, locationId: e.target.value })}>
+                  <option value="">—</option>{locs.map((l) => <option key={l.id} value={l.id}>{name(l)}</option>)}
                 </select>
               </Field>
               <Field label={t("inCount")}>

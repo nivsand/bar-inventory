@@ -69,6 +69,41 @@ export async function GET(req: Request, { params }: { params: { type: string } }
         rows = [...map.values()];
         break;
       }
+      case "sales-weekly": {
+        const ws = await prisma.weeklySales.findMany({
+          include: { item: true },
+          orderBy: [{ year: "desc" }, { weekNumber: "desc" }, { item: { nameEn: "asc" } }],
+          take: 1000,
+        });
+        rows = ws.map((w) => ({ year: w.year, week: w.weekNumber, item: w.item.nameEn, quantitySold: w.quantitySold, revenue: w.revenue ?? "" }));
+        break;
+      }
+      case "sales-by-product": {
+        const ws = await prisma.weeklySales.findMany({ include: { item: true } });
+        const map = new Map<string, { item: string; totalQty: number; totalRevenue: number; weeks: number }>();
+        for (const w of ws) {
+          const m = map.get(w.item.nameEn) || { item: w.item.nameEn, totalQty: 0, totalRevenue: 0, weeks: 0 };
+          m.totalQty += w.quantitySold; m.totalRevenue += w.revenue ?? 0; m.weeks++;
+          map.set(w.item.nameEn, m);
+        }
+        rows = [...map.values()]
+          .map((m) => ({ ...m, totalQty: Math.round(m.totalQty * 100) / 100, totalRevenue: Math.round(m.totalRevenue * 100) / 100 }))
+          .sort((a, b) => b.totalQty - a.totalQty);
+        break;
+      }
+      case "sales-unmapped": {
+        const lines = await prisma.salesLine.findMany({
+          where: { mappedItemId: null },
+          include: { upload: { select: { year: true, weekNumber: true, fileName: true, uploadedAt: true } } },
+          orderBy: { upload: { uploadedAt: "desc" } },
+          take: 500,
+        });
+        rows = lines.map((l) => ({
+          posProductName: l.posProductName, quantitySold: l.quantitySold, revenue: l.revenue ?? "",
+          year: l.upload.year, week: l.upload.weekNumber, upload: l.upload.fileName || "pasted",
+        }));
+        break;
+      }
       default: return badRequest("Unknown report type");
     }
 

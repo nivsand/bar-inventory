@@ -15,6 +15,8 @@ export default function CountPage() {
   const [tab, setTab] = useState<"new" | "history">("new");
   const [items, setItems] = useState<any[]>([]);
   const [area, setArea] = useState<"KITCHEN" | "FLOOR">("KITCHEN");
+  const [locations, setLocations] = useState<any[]>([]);
+  const [scope, setScope] = useState<string>("FULL"); // "FULL" or a Location id
   const [values, setValues] = useState<Record<string, string>>({});
   const [search, setSearch] = useState("");
   const [countId, setCountId] = useState<string | null>(null);
@@ -28,14 +30,17 @@ export default function CountPage() {
   const loadPending = () =>
     api("/api/counts").then((cs) => setPending(cs.filter((c: any) => c.status === "SUBMITTED")));
 
-  // Only count-enabled items for the selected area appear in the count.
+  // Full count: only count-enabled items for the selected area.
+  // Location count: only count-enabled items assigned to that location (any area).
   useEffect(() => {
-    api(`/api/inventory?inCount=1&area=${area}`).then(setItems);
-  }, [area]);
-  useEffect(() => { loadPending(); }, []);
+    const qs = scope === "FULL" ? `area=${area}` : `locationId=${scope}`;
+    api(`/api/inventory?inCount=1&${qs}`).then(setItems);
+  }, [area, scope]);
+  useEffect(() => { loadPending(); api("/api/locations").then(setLocations); }, []);
 
   async function start() {
-    const c = await api("/api/counts", { method: "POST", body: JSON.stringify({}) });
+    const body = scope === "FULL" ? {} : { locationId: scope };
+    const c = await api("/api/counts", { method: "POST", body: JSON.stringify(body) });
     setCountId(c.id);
   }
 
@@ -104,7 +109,21 @@ export default function CountPage() {
               </button>
             )}
           </div>
-          {tab === "new" && (
+          {tab === "new" && !countId && (
+            <div className="inline-flex rounded-xl bg-gray-100 p-1 flex-wrap">
+              <button onClick={() => setScope("FULL")}
+                className={`px-4 py-1.5 rounded-lg text-sm font-medium ${scope === "FULL" ? "bg-white shadow text-brand-700" : "text-gray-500"}`}>
+                {t("fullCount")}
+              </button>
+              {locations.map((l) => (
+                <button key={l.id} onClick={() => setScope(l.id)}
+                  className={`px-4 py-1.5 rounded-lg text-sm font-medium ${scope === l.id ? "bg-white shadow text-brand-700" : "text-gray-500"}`}>
+                  {name(l)}
+                </button>
+              ))}
+            </div>
+          )}
+          {tab === "new" && !countId && scope === "FULL" && (
             <div className="inline-flex rounded-xl bg-gray-100 p-1">
               {(["KITCHEN", "FLOOR"] as const).map((a) => (
                 <button key={a} onClick={() => setArea(a)}
@@ -139,7 +158,9 @@ export default function CountPage() {
       )}
 
       {tab === "new" && (!countId ? (
-        <button className="btn-primary w-full h-14 text-lg" onClick={start}>{t("dailyCount")} →</button>
+        <button className="btn-primary w-full h-14 text-lg" onClick={start}>
+          {scope === "FULL" ? t("fullCount") : name(locations.find((l) => l.id === scope))} →
+        </button>
       ) : submitted ? (
         <Card className="text-center space-y-3">
           <p className="text-emerald-700 font-medium text-lg">✓ {t("submit")}</p>

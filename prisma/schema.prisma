@@ -103,6 +103,19 @@ enum NotificationType {
   GENERAL
 }
 
+// How a weekly sales report was brought into the system.
+enum SalesUploadSource {
+  CSV
+  EXCEL
+  PASTE
+}
+
+// Whether an uploaded sales report still has unmapped product lines.
+enum SalesUploadStatus {
+  PENDING_MAPPING
+  PROCESSED
+}
+
 // ----------------------------- AUTH / USERS -----------------------------
 
 model User {
@@ -127,6 +140,7 @@ model User {
   notifications     Notification[]
   prepTasks         PrepTask[]     @relation("PrepAssignee")
   inventoryAdjusts  InventoryAdjustment[]
+  salesUploads      SalesUpload[]
 
   @@index([role])
 }
@@ -146,6 +160,27 @@ model Category {
   items InventoryItem[]
 
   @@index([kind])
+  @@index([isActive])
+}
+
+// ----------------------------- LOCATIONS -----------------------------
+
+// Physical storage/counting location (Freezer, Bar, Kitchen, Dry Storage...).
+// Distinct from Category: Category = what an item is, Location = where it's
+// stored/counted. One location per item (Phase 1) — open table so new
+// locations can be added without a schema change.
+model Location {
+  id        String   @id @default(cuid())
+  nameHe    String
+  nameEn    String   @unique
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items  InventoryItem[]
+  counts DailyCount[]
+
   @@index([isActive])
 }
 
@@ -201,6 +236,9 @@ model InventoryItem {
   // Organisation + daily-count scope (Phase 2)
   area          Area     @default(KITCHEN) // which area this item lives in
   inCount       Boolean  @default(true)    // whether it appears in the daily count
+  // Physical storage/counting location (Phase 1 location counts). One per item.
+  locationId    String?
+  location      Location? @relation(fields: [locationId], references: [id])
   // Ordering rules
   orderMultiple Float?                 // round order up to multiples of this (e.g. case of 6)
   packSize      Float?                 // units per pack/case
@@ -230,6 +268,9 @@ model InventoryItem {
   deliveryItems    DeliveryItem[]
   wasteEntries     WasteEntry[]
   adjustments      InventoryAdjustment[]
+  salesLines       SalesLine[]
+  productMappings  ProductMapping[]
+  weeklySales      WeeklySales[]
   // If this item is a PREP product, it has exactly one prep profile + recipe
   prepItem         PrepItem?
   // Recipe lines where THIS item is consumed as an ingredient
@@ -240,6 +281,7 @@ model InventoryItem {
   @@index([kind])
   @@index([supplierId])
   @@index([categoryId])
+  @@index([locationId])
 }
 
 // Every quantity change to an item is recorded here (event-sourced stock ledger).
@@ -270,6 +312,9 @@ model DailyCount {
   status      CountStatus @default(DRAFT)
   countedById String
   approvedById String?
+  // Scope of this count: null = full count (covers all in-count items, as before).
+  // Set = location-scoped count (covers only items assigned to this location).
+  locationId  String?
   submittedAt DateTime?
   approvedAt  DateTime?
   notes       String?
@@ -278,10 +323,12 @@ model DailyCount {
 
   countedBy  User              @relation("CountedBy", fields: [countedById], references: [id])
   approvedBy User?             @relation("ApprovedBy", fields: [approvedById], references: [id])
+  location   Location?         @relation(fields: [locationId], references: [id])
   entries    DailyCountEntry[]
 
   @@index([businessDay])
   @@index([status])
+  @@index([locationId])
 }
 
 model DailyCountEntry {
@@ -506,16 +553,73 @@ model MenuRecipeItem {
   @@index([itemId])
 }
 
-// Reserved for future POS integration. Not used by MVP logic.
-model SalesImport {
-  id          String   @id @default(cuid())
-  source      String   // POS name
-  businessDay DateTime
-  rawPayload  String   // raw imported data
-  processed   Boolean  @default(false)
-  createdAt   DateTime @default(now())
+// ----------------------------- SALES (Reports → Sales Reports) -----------------------------
 
-  @@index([businessDay])
+// One weekly sales report upload (CSV file, Excel file, or pasted table).
+model SalesUpload {
+  id           String            @id @default(cuid())
+  source       SalesUploadSource
+  fileName     String?
+  rawData      String            // original CSV/TSV text (or sheet-as-CSV for Excel), kept for re-processing
+  periodStart  DateTime          // Monday of the reporting week
+  periodEnd    DateTime          // Sunday of the reporting week
+  weekNumber   Int               // ISO week number
+  year         Int               // ISO week-year
+  status       SalesUploadStatus @default(PENDING_MAPPING)
+  uploadedById String
+  uploadedAt   DateTime          @default(now())
+  notes        String?
+
+  uploadedBy User        @relation(fields: [uploadedById], references: [id])
+  lines      SalesLine[]
+
+  @@index([year, weekNumber])
+}
+
+// One product line from an uploaded report, as it appeared in the POS export
+// (before mapping to an inventory item).
+model SalesLine {
+  id             String  @id @default(cuid())
+  uploadId       String
+  posProductName String  // raw name as it appeared, e.g. "Guac", "Coke Bottle"
+  quantitySold   Float
+  revenue        Float?
+  mappedItemId   String? // resolved InventoryItem, null until mapped
+
+  upload     SalesUpload    @relation(fields: [uploadId], references: [id], onDelete: Cascade)
+  mappedItem InventoryItem? @relation(fields: [mappedItemId], references: [id])
+
+  @@index([uploadId])
+  @@index([mappedItemId])
+}
+
+// Saved POS-product-name → InventoryItem mapping, reused on future uploads.
+model ProductMapping {
+  id             String   @id @default(cuid())
+  posProductName String   @unique // normalized (lowercase/trim) raw POS name
+  itemId         String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  item InventoryItem @relation(fields: [itemId], references: [id])
+
+  @@index([itemId])
+}
+
+// Aggregated (item, ISO week) sales — the historical time series used by
+// reporting now and by forecasting/ordering recommendations later.
+model WeeklySales {
+  id           String  @id @default(cuid())
+  itemId       String
+  year         Int
+  weekNumber   Int
+  quantitySold Float
+  revenue      Float?
+
+  item InventoryItem @relation(fields: [itemId], references: [id])
+
+  @@unique([itemId, year, weekNumber])
+  @@index([year, weekNumber])
 }
 
 // ----------------------------- WASTE -----------------------------

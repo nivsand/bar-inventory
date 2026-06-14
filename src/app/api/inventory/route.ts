@@ -14,6 +14,7 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const kind = searchParams.get("kind") || undefined;
     const area = searchParams.get("area") || undefined;       // KITCHEN | FLOOR
+    const locationId = searchParams.get("locationId") || undefined; // physical storage/count location
     const inCount = searchParams.get("inCount") === "1";        // only count-enabled items
     const archived = searchParams.get("archived") === "1";
 
@@ -34,9 +35,10 @@ export async function GET(req: Request) {
         isActive: true,
         ...(kind ? { kind: kind as any } : {}),
         ...(area ? { area: area as any } : {}),
+        ...(locationId ? { locationId } : {}),
         ...(inCount ? { inCount: true } : {}),
       },
-      include: { category: true, supplier: true },
+      include: { category: true, supplier: true, location: true },
       orderBy: [{ area: "asc" }, { kind: "asc" }, { nameEn: "asc" }],
     });
     return ok(items);
@@ -49,6 +51,7 @@ const schema = z.object({
   area: z.enum(["KITCHEN", "FLOOR"]).default("KITCHEN"),
   inCount: z.boolean().default(true),
   categoryId: z.string().nullable().optional(), supplierId: z.string().nullable().optional(),
+  locationId: z.string().nullable().optional(),
   currentQty: z.coerce.number().default(0), minQty: z.coerce.number().default(0), parQty: z.coerce.number().default(0),
   avgDailyUsage: z.coerce.number().default(0), packSize: z.coerce.number().nullable().optional(),
   orderMultiple: z.coerce.number().nullable().optional(), shelfLifeDays: z.coerce.number().nullable().optional(),

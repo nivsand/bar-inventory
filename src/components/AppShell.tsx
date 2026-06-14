@@ -13,6 +13,7 @@ const NAV: { href: string; key: TKey; managerOnly?: boolean; adminOnly?: boolean
   { href: "/inventory", key: "inventory" },
   { href: "/recipes", key: "recipes", managerOnly: true },
   { href: "/categories", key: "categories", managerOnly: true },
+  { href: "/locations", key: "locations", managerOnly: true },
   { href: "/orders", key: "orders", managerOnly: true },
   { href: "/deliveries", key: "deliveries" },
   { href: "/suppliers", key: "suppliers", managerOnly: true },

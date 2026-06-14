@@ -24,6 +24,7 @@ export function CountDetailModal({
           <>
             <h2 className="text-xl font-bold">{t("dailyCount")} · {t("review")}</h2>
             <div className="text-sm text-gray-600 space-y-0.5">
+              <div>{t("location")}: <b>{detail.location ? name(detail.location) : t("fullCount")}</b></div>
               <div>{t("employee")}: <b>{detail.countedBy?.name}</b></div>
               <div>{t("date")}: {new Date(detail.submittedAt || detail.businessDay).toLocaleString()}</div>
               <div>{t("status")}: <span className="badge bg-gray-100">{detail.status}</span></div>
