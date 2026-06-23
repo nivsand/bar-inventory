@@ -36,6 +36,11 @@ export default function InventoryPage() {
   const [mergeOpen, setMergeOpen] = useState(false);
   const [mergeTarget, setMergeTarget] = useState("");
   const [bulkCat, setBulkCat] = useState("");
+  const [quickSupplier, setQuickSupplier] = useState("");
+  const [quickQty, setQuickQty] = useState<Record<string, string>>({});
+  const [quickNotes, setQuickNotes] = useState<Record<string, string>>({});
+  const [quickSaving, setQuickSaving] = useState(false);
+  const [quickMsg, setQuickMsg] = useState("");
 
   const load = () => api("/api/inventory").then((d) => { setItems(d); setLoading(false); });
   const loadArchived = () => api("/api/inventory?archived=1").then(setArchived);
@@ -135,6 +140,29 @@ export default function InventoryPage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  const quickItems = quickSupplier ? items.filter((i) => i.supplierId === quickSupplier) : [];
+
+  function onQuickSupplierChange(id: string) {
+    setQuickSupplier(id); setQuickQty({}); setQuickNotes({}); setQuickMsg("");
+  }
+
+  async function saveQuickUpdate() {
+    const changed = quickItems.filter((i) => quickQty[i.id] !== undefined && quickQty[i.id] !== "" && Number(quickQty[i.id]) !== i.currentQty);
+    if (!changed.length) return;
+    setQuickSaving(true); setQuickMsg("");
+    try {
+      await api("/api/inventory/quick-update", {
+        method: "POST",
+        body: JSON.stringify({
+          supplierId: quickSupplier,
+          items: changed.map((i) => ({ itemId: i.id, newQty: Number(quickQty[i.id]), note: quickNotes[i.id] || undefined })),
+        }),
+      });
+      setQuickQty({}); setQuickNotes({}); setQuickMsg(t("quickUpdateSuccess")); load();
+    } catch (e: any) { setQuickMsg(e.message || "Error"); }
+    finally { setQuickSaving(false); }
   }
 
   const filtered = items.filter((i) =>
@@ -244,6 +272,60 @@ export default function InventoryPage() {
           </tbody>
         </table>
       </Card>
+
+      {isManager && (
+        <section className="space-y-3">
+          <h2 className="font-semibold text-lg">{t("quickUpdateBySupplier")}</h2>
+          <Card>
+            <div className="flex flex-wrap items-center gap-3 mb-3">
+              <select className="touch-input h-10 w-auto" value={quickSupplier} onChange={(e) => onQuickSupplierChange(e.target.value)}>
+                <option value="">{t("selectSupplier")}…</option>
+                {sups.map((s) => <option key={s.id} value={s.id}>{name(s)}</option>)}
+              </select>
+              {quickMsg && <span className={`text-sm ${quickMsg.includes("Error") ? "text-red-600" : "text-emerald-600"}`}>{quickMsg}</span>}
+            </div>
+            {quickSupplier && quickItems.length > 0 && (
+              <>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 text-gray-500"><tr>
+                      <th className="text-start p-2">{t("item")}</th>
+                      <th className="p-2">{t("current")}</th>
+                      <th className="p-2">{t("unit")}</th>
+                      <th className="p-2">{t("newQty")}</th>
+                      <th className="text-start p-2">{t("note")}</th>
+                    </tr></thead>
+                    <tbody>{quickItems.map((i) => (
+                      <tr key={i.id} className="border-t">
+                        <td className="p-2">{name(i)}</td>
+                        <td className="p-2 text-center font-medium">{i.currentQty}</td>
+                        <td className="p-2 text-center text-gray-500">{i.unit}</td>
+                        <td className="p-2 text-center">
+                          <input className="touch-input h-10 w-24 text-center" type="number"
+                            placeholder={String(i.currentQty)}
+                            value={quickQty[i.id] ?? ""}
+                            onChange={(e) => setQuickQty((q) => ({ ...q, [i.id]: e.target.value }))} />
+                        </td>
+                        <td className="p-2">
+                          <input className="touch-input h-10 w-full" type="text"
+                            value={quickNotes[i.id] ?? ""}
+                            onChange={(e) => setQuickNotes((n) => ({ ...n, [i.id]: e.target.value }))} />
+                        </td>
+                      </tr>
+                    ))}</tbody>
+                  </table>
+                </div>
+                <div className="flex justify-end mt-3">
+                  <button className="btn-primary" onClick={saveQuickUpdate} disabled={quickSaving}>
+                    {quickSaving ? t("processing") : t("saveQuantities")}
+                  </button>
+                </div>
+              </>
+            )}
+            {quickSupplier && quickItems.length === 0 && <p className="text-sm text-gray-400">{t("noData")}</p>}
+          </Card>
+        </section>
+      )}
 
       {editing && (
         <div className="fixed inset-0 bg-black/40 flex items-end md:items-center justify-center z-30 p-0 md:p-4" onClick={() => setEditing(null)}>

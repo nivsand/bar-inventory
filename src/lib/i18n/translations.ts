@@ -79,6 +79,9 @@ export const dict = {
     periodStart: "תחילת תקופה", uploadedBy: "הועלה על ידי", uploadedAt: "תאריך העלאה",
     upload: "העלאה", uploads: "העלאות", mapping: "התאמה", mappings: "התאמות",
     saveMapping: "שמור התאמה", ignore: "התעלם",
+    quickUpdateBySupplier: "עדכון מהיר לפי ספק", selectSupplier: "בחר ספק",
+    newQty: "כמות חדשה", saveQuantities: "שמירת כמויות", note: "הערה",
+    quickUpdateSuccess: "הכמויות עודכנו בהצלחה",
   },
   en: {
     appName: "Bar Inventory",
@@ -159,6 +162,9 @@ export const dict = {
     periodStart: "Period start", uploadedBy: "Uploaded by", uploadedAt: "Uploaded at",
     upload: "Upload", uploads: "Uploads", mapping: "Mapping", mappings: "Mappings",
     saveMapping: "Save mapping", ignore: "Ignore",
+    quickUpdateBySupplier: "Quick update by supplier", selectSupplier: "Select supplier",
+    newQty: "New qty", saveQuantities: "Save quantities", note: "Note",
+    quickUpdateSuccess: "Quantities updated successfully",
   },
 } as const;
 

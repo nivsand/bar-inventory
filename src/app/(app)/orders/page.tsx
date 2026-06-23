@@ -151,64 +151,56 @@ export default function OrdersPage() {
 
       <section className="space-y-4">
         <h2 className="font-semibold text-lg">{t("suggestedQty")} · {t("generateOrder")}</h2>
-        {sugg.bySupplier.length === 0 && <Card><p className="text-gray-400">{t("noData")}</p></Card>}
-        {sugg.bySupplier.map((g: any) => {
-          const existingOrder = orders.find((o: any) => o.supplier?.id === g.supplier.id && o.status !== "CANCELLED");
-          return (
-          <Card key={g.supplier.id}>
-            <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
-              <h3 className="font-semibold">{name(g.supplier)} <span className="text-gray-400 text-sm">· {g.supplier.orderingMethod}</span></h3>
-              <div className="flex gap-2 flex-wrap items-center">
-                {existingOrder ? (
-                  <>
-                    <span className={`badge ${STATUS_TONE[existingOrder.status] || "bg-blue-100 text-blue-800"}`}>{t("orderCreated")}</span>
-                    <button className="btn-ghost text-sm" onClick={() => openMessage(existingOrder)}>{t("copyMessage")}</button>
-                    {isManager && existingOrder.status === "NEED_TO_ORDER" && (
-                      <button className="btn-primary text-sm" onClick={() => markSent(existingOrder.id)}>{t("markAsSent")}</button>
+        {(() => {
+          const pending = sugg.bySupplier.filter((g: any) => !orders.some((o: any) => o.supplier?.id === g.supplier.id && o.status !== "CANCELLED"));
+          return <>
+            {pending.length === 0 && <Card><p className="text-gray-400">{t("noData")}</p></Card>}
+            {pending.map((g: any) => (
+              <Card key={g.supplier.id}>
+                <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
+                  <h3 className="font-semibold">{name(g.supplier)} <span className="text-gray-400 text-sm">· {g.supplier.orderingMethod}</span></h3>
+                  <div className="flex gap-2 flex-wrap items-center">
+                    {g.items.length > 0 && isManager && (
+                      <>
+                        <button className="btn-ghost text-sm" onClick={() => createMessage(g)}>{t("createMessage")}</button>
+                        <button className="btn-primary text-sm" onClick={() => createOrder(g)}>{t("generateOrder")}</button>
+                      </>
                     )}
-                  </>
+                  </div>
+                </div>
+                {g.items.length === 0 ? (
+                  <p className="text-sm text-gray-400">{t("noItemsToOrderToday")}</p>
                 ) : (
-                  g.items.length > 0 && isManager && (
-                    <>
-                      <button className="btn-ghost text-sm" onClick={() => createMessage(g)}>{t("createMessage")}</button>
-                      <button className="btn-primary text-sm" onClick={() => createOrder(g)}>{t("generateOrder")}</button>
-                    </>
-                  )
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="text-gray-500"><tr>
+                        <th className="text-start p-2">{t("item")}</th><th className="p-2">{t("current")}</th>
+                        <th className="p-2">{t("min")}</th><th className="p-2">{t("suggestedQty")}</th><th className="text-start p-2">{t("reason")}</th>
+                      </tr></thead>
+                      <tbody>{g.items.map((it: any) => (
+                        <tr key={it.itemId} className="border-t">
+                          <td className="p-2">{name(it)}</td>
+                          <td className="p-2 text-center">{it.currentQty} {it.unit}</td>
+                          <td className="p-2 text-center text-gray-500">{it.minQty}</td>
+                          <td className="p-2 text-center">
+                            <input className="touch-input h-10 w-20 text-center" type="number"
+                              value={qty[it.itemId] ?? it.suggestedQty} onChange={(e) => setQty((q) => ({ ...q, [it.itemId]: Number(e.target.value) }))} />
+                            {it.orderUnitQty && it.unitsPerOrderUnit ? (
+                              <div className="text-[11px] text-brand-700 mt-0.5">
+                                {Math.ceil((qty[it.itemId] ?? it.suggestedQty) / it.unitsPerOrderUnit)} {(locale === "en" ? it.orderUnitNameEn : it.orderUnitNameHe) || ""}
+                              </div>
+                            ) : null}
+                          </td>
+                          <td className="p-2 text-xs text-gray-500">{it.reason}</td>
+                        </tr>
+                      ))}</tbody>
+                    </table>
+                  </div>
                 )}
-              </div>
-            </div>
-            {g.items.length === 0 ? (
-              <p className="text-sm text-gray-400">{t("noItemsToOrderToday")}</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="text-gray-500"><tr>
-                    <th className="text-start p-2">{t("item")}</th><th className="p-2">{t("current")}</th>
-                    <th className="p-2">{t("min")}</th><th className="p-2">{t("suggestedQty")}</th><th className="text-start p-2">{t("reason")}</th>
-                  </tr></thead>
-                  <tbody>{g.items.map((it: any) => (
-                    <tr key={it.itemId} className="border-t">
-                      <td className="p-2">{name(it)}</td>
-                      <td className="p-2 text-center">{it.currentQty} {it.unit}</td>
-                      <td className="p-2 text-center text-gray-500">{it.minQty}</td>
-                      <td className="p-2 text-center">
-                        <input className="touch-input h-10 w-20 text-center" type="number"
-                          value={qty[it.itemId] ?? it.suggestedQty} onChange={(e) => setQty((q) => ({ ...q, [it.itemId]: Number(e.target.value) }))} />
-                        {it.orderUnitQty && it.unitsPerOrderUnit ? (
-                          <div className="text-[11px] text-brand-700 mt-0.5">
-                            {Math.ceil((qty[it.itemId] ?? it.suggestedQty) / it.unitsPerOrderUnit)} {(locale === "en" ? it.orderUnitNameEn : it.orderUnitNameHe) || ""}
-                          </div>
-                        ) : null}
-                      </td>
-                      <td className="p-2 text-xs text-gray-500">{it.reason}</td>
-                    </tr>
-                  ))}</tbody>
-                </table>
-              </div>
-            )}
-          </Card>
-          );
-        })}
+              </Card>
+            ))}
+          </>;
+        })()}
       </section>
 
       {[

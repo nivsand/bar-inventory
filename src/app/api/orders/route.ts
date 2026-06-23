@@ -1,6 +1,6 @@
 import { requireUser, requireManager } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { ok, created, serverError } from "@/lib/api";
+import { ok, created, serverError, badRequest } from "@/lib/api";
 import { logAudit } from "@/server/audit";
 
 export async function GET() {
@@ -18,6 +18,14 @@ export async function POST(req: Request) {
   try {
     const user = await requireManager();
     const { supplierId, items, channel } = await req.json();
+
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const duplicate = await prisma.order.findFirst({
+      where: { supplierId, status: { not: "CANCELLED" }, createdAt: { gte: todayStart } },
+    });
+    if (duplicate) return badRequest("An active order already exists for this supplier today");
+
     // items: [{itemId, suggestedQty, orderedQty, currentQty, minQty, reason, unit}]
     const order = await prisma.order.create({
       data: {
