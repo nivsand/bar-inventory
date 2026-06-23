@@ -14,19 +14,19 @@ async function main() {
   // --- Users ---
   const pwd = await bcrypt.hash("password123", 10);
   const admin = await prisma.user.upsert({
-    where: { email: "admin@bar.local" },
+    where: { username: "admin" },
     update: {},
-    create: { email: "admin@bar.local", name: "Admin", role: Role.ADMIN, passwordHash: pwd, locale: "he" },
+    create: { username: "admin", email: "admin@bar.local", name: "Admin", role: Role.ADMIN, passwordHash: pwd, locale: "he" },
   });
   const manager = await prisma.user.upsert({
-    where: { email: "manager@bar.local" },
+    where: { username: "manager" },
     update: {},
-    create: { email: "manager@bar.local", name: "Manager", role: Role.MANAGER, passwordHash: pwd, locale: "he" },
+    create: { username: "manager", email: "manager@bar.local", name: "Manager", role: Role.MANAGER, passwordHash: pwd, locale: "he" },
   });
   await prisma.user.upsert({
-    where: { email: "employee@bar.local" },
+    where: { username: "employee" },
     update: {},
-    create: { email: "employee@bar.local", name: "Employee", role: Role.EMPLOYEE, passwordHash: pwd, locale: "he" },
+    create: { username: "employee", email: "employee@bar.local", name: "Employee", role: Role.EMPLOYEE, passwordHash: pwd, locale: "he" },
   });
 
   // --- Categories ---
@@ -173,7 +173,7 @@ async function main() {
     where: { key: "businessName" }, update: {}, create: { key: "businessName", value: "El Bar" },
   });
 
-  console.log("Seed complete. Logins: admin@bar.local / manager@bar.local / employee@bar.local (password: password123)");
+  console.log("Seed complete. Logins: admin / manager / employee (password: password123)");
 }
 
 main().catch((e) => { console.error(e); process.exit(1); }).finally(() => prisma.$disconnect());

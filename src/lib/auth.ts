@@ -10,14 +10,14 @@ export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
       name: "Credentials",
-      credentials: { email: { label: "Email", type: "email" }, password: { label: "Password", type: "password" } },
+      credentials: { username: { label: "Username", type: "text" }, password: { label: "Password", type: "password" } },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials.password) return null;
-        const user = await prisma.user.findUnique({ where: { email: credentials.email } });
+        if (!credentials?.username || !credentials.password) return null;
+        const user = await prisma.user.findUnique({ where: { username: credentials.username.toLowerCase() } });
         if (!user || !user.isActive) return null;
         const ok = await bcrypt.compare(credentials.password, user.passwordHash);
         if (!ok) return null;
-        return { id: user.id, name: user.name, email: user.email, role: user.role, locale: user.locale } as any;
+        return { id: user.id, name: user.name, email: user.email || user.username, role: user.role, locale: user.locale } as any;
       },
     }),
   ],
@@ -50,7 +50,7 @@ export const authOptions: NextAuthOptions = {
 
 export const getSession = () => getServerSession(authOptions);
 
-export type SessionUser = { id: string; name: string; email: string; role: Role; locale: string };
+export type SessionUser = { id: string; name: string; email?: string | null; role: Role; locale: string };
 
 export async function requireUser(): Promise<SessionUser> {
   const session = await getSession();

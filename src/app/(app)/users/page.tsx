@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { api } from "@/lib/fetcher";
 import { Card, Field, Input, Spinner } from "@/components/ui";
 
-type U = { id: string; name: string; email: string; role: string; area?: string | null; isActive: boolean };
+type U = { id: string; username: string; name: string; email?: string | null; role: string; area?: string | null; isActive: boolean };
 
 export default function UsersPage() {
   const { t } = useI18n();
@@ -13,12 +13,11 @@ export default function UsersPage() {
   const myRole = (session?.user as any)?.role;
   const myId = (session?.user as any)?.id;
   const myName = (session?.user as any)?.name;
-  const myEmail = (session?.user as any)?.email;
   const isAdmin = myRole === "ADMIN";
   const isManager = myRole === "MANAGER" || myRole === "ADMIN";
 
   const [users, setUsers] = useState<U[]>([]);
-  const [form, setForm] = useState({ name: "", email: "", password: "", role: "EMPLOYEE", area: "" });
+  const [form, setForm] = useState({ username: "", name: "", email: "", password: "", role: "EMPLOYEE", area: "" });
   const [editing, setEditing] = useState<U | null>(null);
   const [pw, setPw] = useState({ next: "", confirm: "" });
   const [error, setError] = useState("");
@@ -51,7 +50,7 @@ export default function UsersPage() {
     setError("");
     try {
       await api("/api/users", { method: "POST", body: JSON.stringify({ ...form, area: form.area || null }) });
-      setForm({ name: "", email: "", password: "", role: "EMPLOYEE", area: "" });
+      setForm({ username: "", name: "", email: "", password: "", role: "EMPLOYEE", area: "" });
       load();
     } catch (e: any) { setError(e.message); }
   }
@@ -59,7 +58,7 @@ export default function UsersPage() {
   async function saveEdit() {
     if (!editing) return;
     setError("");
-    const body: any = { name: editing.name, email: editing.email, role: editing.role, area: editing.area || null };
+    const body: any = { username: editing.username, name: editing.name, email: editing.email || null, role: editing.role, area: editing.area || null };
     // Optional password reset.
     if (pw.next || pw.confirm) {
       if (pw.next.length < 8) { setError(t("passwordTooShort")); return; }
@@ -96,7 +95,7 @@ export default function UsersPage() {
       {/* My account — change own password (every role) */}
       <Card className="space-y-3 max-w-md">
         <h2 className="font-semibold">{t("myAccount")}</h2>
-        <p className="text-sm text-gray-500">{myName} · {myEmail} · {myRole}</p>
+        <p className="text-sm text-gray-500">{myName} · {myRole}</p>
         <form onSubmit={changeMyPassword} className="space-y-3">
           <Field label={t("currentPassword")}><Input type="password" autoComplete="current-password" value={myPw.current} onChange={(e) => setMyPw({ ...myPw, current: e.target.value })} /></Field>
           <Field label={t("newPassword")}><Input type="password" autoComplete="new-password" value={myPw.next} onChange={(e) => setMyPw({ ...myPw, next: e.target.value })} /></Field>
@@ -111,8 +110,9 @@ export default function UsersPage() {
       <Card className="space-y-3">
         <h2 className="font-semibold">{t("add")}</h2>
         <div className="grid grid-cols-2 gap-3">
+          <Field label={t("username")}><Input value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} /></Field>
           <Field label="Name"><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
-          <Field label={t("email")}><Input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
+          <Field label={`${t("email")} (${t("optional")})`}><Input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
           <Field label={t("password")}><Input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} /></Field>
           <Field label={t("role")}>
             <select className="touch-input" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
@@ -131,19 +131,19 @@ export default function UsersPage() {
         </div>
         {!isAdmin && <p className="text-xs text-gray-400">{t("managerCreateEmployeeOnly")}</p>}
         {error && <p className="text-red-600 text-sm">{error}</p>}
-        <button className="btn-primary" disabled={!form.email || !form.name} onClick={add}>{t("add")}</button>
+        <button className="btn-primary" disabled={!form.username || !form.name} onClick={add}>{t("add")}</button>
       </Card>
 
       <Card className="p-0 overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-500"><tr>
-            <th className="text-start p-3">Name</th><th className="text-start p-3">{t("email")}</th>
+            <th className="text-start p-3">{t("username")}</th><th className="text-start p-3">Name</th>
             <th className="p-3">{t("role")}</th><th className="p-3">{t("active")}</th><th className="p-3"></th>
           </tr></thead>
           <tbody>{users.map((u) => (
             <tr key={u.id} className={`border-t ${u.isActive ? "" : "opacity-50"}`}>
+              <td className="p-3">{u.username}</td>
               <td className="p-3">{u.name}{u.id === myId && <span className="text-gray-400"> ({t("me")})</span>}</td>
-              <td className="p-3">{u.email}</td>
               <td className="p-3 text-center"><span className="badge bg-gray-100">{u.role}</span></td>
               <td className="p-3 text-center">{u.isActive ? "✓" : "—"}</td>
               <td className="p-3">
@@ -166,8 +166,9 @@ export default function UsersPage() {
         <div className="fixed inset-0 bg-black/40 flex items-end md:items-center justify-center z-30" onClick={() => setEditing(null)}>
           <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-md p-5 space-y-3" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-xl font-bold">{t("edit")}</h2>
+            <Field label={t("username")}><Input value={editing.username} onChange={(e) => setEditing({ ...editing, username: e.target.value })} /></Field>
             <Field label="Name"><Input value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} /></Field>
-            <Field label={t("email")}><Input value={editing.email} onChange={(e) => setEditing({ ...editing, email: e.target.value })} /></Field>
+            <Field label={`${t("email")} (${t("optional")})`}><Input value={editing.email || ""} onChange={(e) => setEditing({ ...editing, email: e.target.value })} /></Field>
             <Field label={t("role")}>
               <select className="touch-input" value={editing.role} disabled={!isAdmin}
                 onChange={(e) => setEditing({ ...editing, role: e.target.value })}>

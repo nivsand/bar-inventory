@@ -8,8 +8,9 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 
 const patchSchema = z.object({
+  username: z.string().min(1).transform((v) => v.toLowerCase()).optional(),
   name: z.string().min(1).optional(),
-  email: z.string().email().optional(),
+  email: z.string().email().nullable().optional(),
   password: z.string().min(MIN_PASSWORD_LENGTH).optional(),
   role: z.enum(["EMPLOYEE", "MANAGER", "ADMIN"]).optional(),
   area: z.enum(["KITCHEN", "FLOOR"]).nullable().optional(),
@@ -40,6 +41,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     }
 
     const data: any = {};
+    if (body.username !== undefined) data.username = body.username;
     if (body.name !== undefined) data.name = body.name;
     if (body.email !== undefined) data.email = body.email;
     if (body.role !== undefined) data.role = body.role;
@@ -50,13 +52,13 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     const updated = await prisma.user.update({ where: { id: params.id }, data });
     await logAudit({
       userId: actor.id, entity: "User", entityId: params.id, action: "UPDATE",
-      changes: diff({ name: target.name, email: target.email, role: target.role, isActive: target.isActive }, {
-        name: body.name, email: body.email, role: body.role, isActive: body.isActive,
+      changes: diff({ username: target.username, name: target.name, email: target.email, role: target.role, isActive: target.isActive }, {
+        username: body.username, name: body.name, email: body.email, role: body.role, isActive: body.isActive,
       }),
     });
-    return ok({ id: updated.id, name: updated.name, email: updated.email, role: updated.role, isActive: updated.isActive });
+    return ok({ id: updated.id, username: updated.username, name: updated.name, email: updated.email, role: updated.role, isActive: updated.isActive });
   } catch (e: any) {
-    if (e?.code === "P2002") return badRequest("Email already in use");
+    if (e?.code === "P2002") return badRequest("Username already in use");
     return serverError(e);
   }
 }

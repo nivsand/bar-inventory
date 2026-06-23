@@ -82,6 +82,7 @@ export const dict = {
     quickUpdateBySupplier: "עדכון מהיר לפי ספק", selectSupplier: "בחר ספק",
     newQty: "כמות חדשה", saveQuantities: "שמירת כמויות", note: "הערה",
     quickUpdateSuccess: "הכמויות עודכנו בהצלחה",
+    username: "שם משתמש", optional: "אופציונלי",
   },
   en: {
     appName: "Bar Inventory",
@@ -165,6 +166,7 @@ export const dict = {
     quickUpdateBySupplier: "Quick update by supplier", selectSupplier: "Select supplier",
     newQty: "New qty", saveQuantities: "Save quantities", note: "Note",
     quickUpdateSuccess: "Quantities updated successfully",
+    username: "Username", optional: "optional",
   },
 } as const;
 

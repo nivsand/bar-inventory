@@ -8,7 +8,7 @@ import { Card, Field, Input } from "@/components/ui";
 export default function LoginPage() {
   const { t, locale, setLocale } = useI18n();
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -16,7 +16,7 @@ export default function LoginPage() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true); setError("");
-    const res = await signIn("credentials", { email, password, redirect: false });
+    const res = await signIn("credentials", { username, password, redirect: false });
     setLoading(false);
     if (res?.error) setError("Invalid credentials");
     else router.push("/dashboard");
@@ -30,11 +30,10 @@ export default function LoginPage() {
           <button onClick={() => setLocale(locale === "he" ? "en" : "he")} className="btn-ghost text-sm">{locale === "he" ? "EN" : "עב"}</button>
         </div>
         <form onSubmit={submit} className="space-y-4" autoComplete="off">
-          {/* Honeypot fields discourage browsers from autofilling the real inputs */}
-          <input type="text" name="username" autoComplete="username" className="hidden" tabIndex={-1} aria-hidden="true" />
+          <input type="text" name="email" autoComplete="username" className="hidden" tabIndex={-1} aria-hidden="true" />
           <input type="password" name="password" autoComplete="new-password" className="hidden" tabIndex={-1} aria-hidden="true" />
-          <Field label={t("email")}>
-            <Input type="email" name="login-email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="off" autoCorrect="off" autoCapitalize="none" spellCheck={false} />
+          <Field label={t("username")}>
+            <Input type="text" name="login-username" value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="off" autoCorrect="off" autoCapitalize="none" spellCheck={false} />
           </Field>
           <Field label={t("password")}>
             <Input type="password" name="login-password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" />
