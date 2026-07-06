@@ -138,8 +138,8 @@ export default function OrdersPage() {
     setAddTo(null); setAddForm({ itemId: "", qty: "" }); load();
   }
 
-  async function deleteOrder(id: string) {
-    if (!window.confirm(t("confirmDeleteOrder"))) return;
+  async function deleteOrder(id: string, isSent: boolean) {
+    if (!window.confirm(isSent ? t("confirmCancelOrder") : t("confirmDeleteOrder"))) return;
     try { await api(`/api/orders/${id}`, { method: "DELETE" }); load(); }
     catch (e: any) { alert(e.message); }
   }
@@ -238,7 +238,7 @@ export default function OrdersPage() {
                     <select className="touch-input h-10 w-auto text-sm" value={o.status} onChange={(e) => setStatus(o.id, e.target.value)}>
                       {Object.keys(STATUS_TONE).map((s) => <option key={s} value={s}>{s}</option>)}
                     </select>
-                    {isManager && <button className="text-red-600 text-sm" onClick={() => deleteOrder(o.id)}>{t("delete")}</button>}
+                    {isManager && <button className="text-red-600 text-sm" onClick={() => deleteOrder(o.id, !isOpen)}>{isOpen ? t("delete") : t("cancelOrder")}</button>}
                   </div>
                 </div>
 

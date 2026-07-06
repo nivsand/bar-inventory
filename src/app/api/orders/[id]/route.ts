@@ -50,20 +50,24 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 }
 
 // Delete an order. Manager/Admin only (employees blocked by requireManager).
-// If the order already has received-goods deliveries linked, refuse with a
-// clear message instead of crashing on the foreign-key constraint.
+// Only a draft (NEED_TO_ORDER) order can be hard-deleted. Once an order has
+// been sent, hard-deleting it would silently free up its supplier's order
+// cycle for a duplicate order, so it's cancelled instead: status becomes
+// CANCELLED, the row (and its history) stays for the record.
 export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
   try {
     const user = await requireManager();
-    try {
+    const order = await prisma.order.findUniqueOrThrow({ where: { id: params.id } });
+
+    if (order.status === "NEED_TO_ORDER") {
       await prisma.order.delete({ where: { id: params.id } }); // items + history cascade
-    } catch (e: any) {
-      if (e?.code === "P2003" || e?.code === "P2014") {
-        return badRequest("Cannot delete: this order has linked deliveries. Cancel it instead.");
-      }
-      throw e;
+      await logAudit({ userId: user.id, entity: "Order", entityId: params.id, action: "DELETE" });
+      return ok({ ok: true });
     }
-    await logAudit({ userId: user.id, entity: "Order", entityId: params.id, action: "DELETE" });
-    return ok({ ok: true });
+
+    await prisma.order.update({ where: { id: params.id }, data: { status: "CANCELLED" } });
+    await prisma.orderStatusHistory.create({ data: { orderId: params.id, status: "CANCELLED", changedBy: user.id } });
+    await logAudit({ userId: user.id, entity: "Order", entityId: params.id, action: "UPDATE", changes: { status: { old: order.status, new: "CANCELLED" } } });
+    return ok({ ok: true, cancelled: true });
   } catch (e) { return serverError(e); }
 }
