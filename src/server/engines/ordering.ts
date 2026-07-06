@@ -68,6 +68,24 @@ export type ReasonKey =
   | "BELOW_PAR"
   | "OK";
 
+/**
+ * Start of the supplier's current order cycle: the most recent scheduled
+ * order day (per orderDeadlineDays) on or before `today`. An order created
+ * on/after this date belongs to the current cycle and should block
+ * duplicates; anything before it is from a past cycle and must not block.
+ */
+export function computeCycleStart(today: Date, orderDeadlineDays: number[]): Date {
+  const d = new Date(today);
+  d.setHours(0, 0, 0, 0);
+  if (!orderDeadlineDays || orderDeadlineDays.length === 0) return d;
+  for (let i = 0; i < 7; i++) {
+    const check = new Date(d);
+    check.setDate(d.getDate() - i);
+    if (orderDeadlineDays.includes(check.getDay())) return check;
+  }
+  return d;
+}
+
 function nextWeekdayDate(from: Date, weekdays: number[], minOffset = 0): Date | null {
   if (!weekdays || weekdays.length === 0) return null;
   for (let i = minOffset; i <= minOffset + 14; i++) {

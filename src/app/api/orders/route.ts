@@ -2,6 +2,7 @@ import { requireUser, requireManager } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ok, created, serverError, badRequest } from "@/lib/api";
 import { logAudit } from "@/server/audit";
+import { computeCycleStart } from "@/server/engines/ordering";
 
 export async function GET() {
   try {
@@ -19,12 +20,13 @@ export async function POST(req: Request) {
     const user = await requireManager();
     const { supplierId, items, channel } = await req.json();
 
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+    const supplier = await prisma.supplier.findUnique({ where: { id: supplierId } });
+    if (!supplier) return badRequest("Supplier not found");
+    const cycleStart = computeCycleStart(new Date(), supplier.orderDeadlineDays);
     const duplicate = await prisma.order.findFirst({
-      where: { supplierId, status: { not: "CANCELLED" }, createdAt: { gte: todayStart } },
+      where: { supplierId, status: { not: "CANCELLED" }, createdAt: { gte: cycleStart } },
     });
-    if (duplicate) return badRequest("An active order already exists for this supplier today");
+    if (duplicate) return badRequest("An active order already exists for this supplier's current order cycle");
 
     // items: [{itemId, suggestedQty, orderedQty, currentQty, minQty, reason, unit}]
     const order = await prisma.order.create({

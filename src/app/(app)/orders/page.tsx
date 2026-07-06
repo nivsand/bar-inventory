@@ -4,6 +4,7 @@ import { useI18n } from "@/lib/i18n/I18nProvider";
 import { useSession } from "next-auth/react";
 import { api } from "@/lib/fetcher";
 import { Card, Spinner } from "@/components/ui";
+import { computeCycleStart } from "@/server/engines/ordering";
 
 const STATUS_TONE: Record<string, string> = {
   NEED_TO_ORDER: "bg-amber-100 text-amber-800", ORDERED: "bg-blue-100 text-blue-800",
@@ -152,10 +153,13 @@ export default function OrdersPage() {
       <section className="space-y-4">
         <h2 className="font-semibold text-lg">{t("suggestedQty")} · {t("generateOrder")}</h2>
         {(() => {
-          const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-          const pending = sugg.bySupplier.filter((g: any) => !orders.some((o: any) =>
-            o.supplier?.id === g.supplier.id && o.status !== "CANCELLED" && new Date(o.createdAt) >= todayStart
-          ));
+          const today = new Date();
+          const pending = sugg.bySupplier.filter((g: any) => {
+            const cycleStart = computeCycleStart(today, g.supplier.orderDeadlineDays ?? []);
+            return !orders.some((o: any) =>
+              o.supplier?.id === g.supplier.id && o.status !== "CANCELLED" && new Date(o.createdAt) >= cycleStart
+            );
+          });
           return <>
             {pending.length === 0 && <Card><p className="text-gray-400">{t("noData")}</p></Card>}
             {pending.map((g: any) => (
