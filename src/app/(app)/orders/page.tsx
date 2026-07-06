@@ -152,7 +152,10 @@ export default function OrdersPage() {
       <section className="space-y-4">
         <h2 className="font-semibold text-lg">{t("suggestedQty")} · {t("generateOrder")}</h2>
         {(() => {
-          const pending = sugg.bySupplier.filter((g: any) => !orders.some((o: any) => o.supplier?.id === g.supplier.id && o.status !== "CANCELLED"));
+          const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+          const pending = sugg.bySupplier.filter((g: any) => !orders.some((o: any) =>
+            o.supplier?.id === g.supplier.id && o.status !== "CANCELLED" && new Date(o.createdAt) >= todayStart
+          ));
           return <>
             {pending.length === 0 && <Card><p className="text-gray-400">{t("noData")}</p></Card>}
             {pending.map((g: any) => (
