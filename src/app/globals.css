@@ -10,6 +10,8 @@ body {
   padding-bottom: env(safe-area-inset-bottom);
 }
 
+h1, h2, h3 { letter-spacing: -0.01em; }
+
 /* Hide the horizontal-scroll nav's scrollbar (mobile) */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
@@ -17,11 +19,72 @@ body {
 /* Inputs at >=16px so iOS Safari never zooms on focus */
 input, select, textarea { font-size: 16px; }
 
-/* Larger touch targets for mobile-first employee use */
-.touch-input { @apply h-14 text-lg rounded-xl border border-gray-300 px-4 w-full focus:ring-2 focus:ring-brand-400 outline-none; }
-.btn { @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 font-medium transition active:scale-95; }
-.btn-primary { @apply btn bg-brand-600 text-white hover:bg-brand-700; }
-.btn-ghost { @apply btn bg-white border border-gray-300 hover:bg-gray-50; }
-.btn-danger { @apply btn bg-red-600 text-white hover:bg-red-700; }
-.card { @apply bg-white rounded-2xl shadow-sm border border-gray-100 p-4; }
-.badge { @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium; }
+/* Respect reduced-motion preference for the app's active/hover micro-interactions */
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}
+
+/* Visible, on-brand focus ring everywhere (keyboard nav) */
+:focus-visible {
+  outline: 2px solid theme('colors.brand.500');
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ---------- Core building blocks ---------- */
+
+.touch-input {
+  @apply h-12 md:h-11 text-base rounded-xl border border-gray-200 bg-white px-4 w-full
+    placeholder:text-gray-400 outline-none transition-colors duration-150
+    focus:border-brand-400 focus:ring-2 focus:ring-brand-100;
+}
+
+.btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 min-h-[44px] font-semibold text-sm
+    transition duration-150 ease-soft active:scale-[0.97] disabled:opacity-50 disabled:pointer-events-none;
+}
+.btn-primary { @apply btn bg-brand-600 text-white shadow-btn hover:bg-brand-700 hover:-translate-y-px; }
+.btn-ghost { @apply btn bg-white border border-gray-200 text-gray-800 hover:bg-gray-50 hover:border-gray-300; }
+.btn-danger { @apply btn bg-red-600 text-white hover:bg-red-700 hover:-translate-y-px; }
+
+.card {
+  @apply bg-white rounded-2xl shadow-card border border-gray-100 p-5 transition-shadow duration-200;
+}
+
+.badge {
+  @apply inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold;
+}
+.badge::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: currentColor;
+  margin-inline-end: 0.4rem;
+  flex: none;
+}
+
+/* Segmented tab control (used for area/scope/view toggles across pages) */
+.seg {
+  @apply inline-flex rounded-xl bg-gray-100 p-1 gap-0.5 flex-wrap;
+}
+.seg-btn {
+  @apply px-4 py-2 rounded-lg text-sm font-semibold text-gray-500 transition-colors duration-150;
+}
+.seg-btn.is-active {
+  @apply bg-white shadow-sm text-brand-700;
+}
+
+/* Shared modal chrome (overlay + panel) so every dialog in the app looks the same */
+.modal-overlay {
+  @apply fixed inset-0 z-40 flex items-end md:items-center justify-center bg-gray-900/45 p-0 md:p-4;
+}
+.modal-panel {
+  @apply bg-white w-full max-w-lg rounded-t-3xl md:rounded-2xl p-5 space-y-3 max-h-[90vh] overflow-y-auto shadow-popover;
+}
+
+/* KPI / stat tint variants */
+.tone-mint { @apply bg-mint-bg text-mint-ink; }
+.tone-sky { @apply bg-sky-bg text-sky-ink; }
+.tone-peach { @apply bg-peach-bg text-peach-ink; }
+.tone-lilac { @apply bg-lilac-bg text-lilac-ink; }

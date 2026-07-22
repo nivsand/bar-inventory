@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import { useSession } from "next-auth/react";
 import { api } from "@/lib/fetcher";
-import { Card, Input, Field, Spinner } from "@/components/ui";
+import { Card, Input, Field, SearchInput, Badge, EmptyState, PageSpinner } from "@/components/ui";
+import { Plus, Pencil } from "lucide-react";
 
 const blank = { nameHe: "", nameEn: "", unit: "kg", kind: "RAW", area: "KITCHEN", inCount: true,
   categoryId: "", supplierId: "", locationId: "", currentQty: 0, minQty: 0, parQty: 0, avgDailyUsage: 0,
@@ -169,32 +170,31 @@ export default function InventoryPage() {
     (i.area || "KITCHEN") === areaTab &&
     (name(i).toLowerCase().includes(search.toLowerCase()) || i.nameHe.includes(search) || i.nameEn.toLowerCase().includes(search.toLowerCase())));
 
-  if (loading) return <div className="flex justify-center py-20"><Spinner /></div>;
+  if (loading) return <PageSpinner />;
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2">
-        <h1 className="text-2xl font-bold">{t("inventory")}</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{t("inventory")}</h1>
         <div className="flex gap-2">
           {isAdmin && <button className="btn-ghost text-sm" onClick={toggleArchived}>{showArchived ? t("hideArchived") : t("viewArchived")}</button>}
-          {isManager && <button className="btn-primary" onClick={() => setEditing({ ...blank })}>+ {t("add")}</button>}
+          {isManager && <button className="btn-primary" onClick={() => setEditing({ ...blank })}><Plus className="h-4 w-4" />{t("add")}</button>}
         </div>
       </div>
-      <Input placeholder={t("search")} value={search} onChange={(e) => setSearch(e.target.value)} />
+      <SearchInput placeholder={t("search")} value={search} onChange={(e) => setSearch(e.target.value)} />
 
       {/* Separate inventory by area */}
-      <div className="inline-flex rounded-xl bg-gray-100 p-1">
+      <div className="seg">
         {(["KITCHEN", "FLOOR"] as const).map((a) => (
-          <button key={a} onClick={() => setAreaTab(a)}
-            className={`px-5 py-1.5 rounded-lg text-sm font-medium ${areaTab === a ? "bg-white shadow text-brand-700" : "text-gray-500"}`}>
+          <button key={a} onClick={() => setAreaTab(a)} className={`seg-btn ${areaTab === a ? "is-active" : ""}`}>
             {t(a === "KITCHEN" ? "kitchen" : "floor")}
           </button>
         ))}
       </div>
 
       {isAdmin && showArchived && (
-        <Card className="p-0 overflow-x-auto border-amber-200">
-          <div className="px-3 py-2 bg-amber-50 text-amber-800 text-sm font-medium flex flex-wrap justify-between items-center gap-2">
+        <Card className="p-0 overflow-hidden tone-peach border-transparent">
+          <div className="px-4 py-2.5 text-sm font-semibold flex flex-wrap justify-between items-center gap-2">
             <span>{t("archived")}</span>
             {selArch.size > 0 && (
               <span className="flex gap-2 flex-wrap">
@@ -202,7 +202,7 @@ export default function InventoryPage() {
                 <button className="btn-danger text-xs" onClick={bulkPermanentDelete} disabled={busy}>{busy ? t("processing") : `${t("bulkPermanentDelete")} (${selArch.size})`}</button>
                 {isAdmin && (
                   <button
-                    className="text-xs border border-red-700 bg-red-900 text-white rounded-lg px-2 py-1 font-semibold hover:bg-red-800 disabled:opacity-50"
+                    className="btn-danger text-xs bg-red-900 hover:bg-red-800"
                     onClick={() => { setForceConfirmText(""); setForceDeleteOpen(true); }}
                     disabled={busy}
                   >
@@ -214,16 +214,16 @@ export default function InventoryPage() {
           </div>
           <table className="w-full text-sm">
             <tbody>
-              {archived.length === 0 && <tr><td className="p-3 text-gray-400">{t("noData")}</td></tr>}
+              {archived.length === 0 && <tr><td className="p-3"><EmptyState label={t("noData")} /></td></tr>}
               {archived.map((i) => (
-                <tr key={i.id} className="border-t">
+                <tr key={i.id} className="border-t border-black/5">
                   <td className="p-3 w-8"><input type="checkbox" checked={selArch.has(i.id)} onChange={() => toggleSel(selArch, setSelArch, i.id)} /></td>
-                  <td className="p-3">{name(i)}</td>
-                  <td className="p-3 text-gray-400">{i.deletedAt ? new Date(i.deletedAt).toLocaleDateString() : ""}</td>
+                  <td className="p-3 font-medium">{name(i)}</td>
+                  <td className="p-3 text-gray-500">{i.deletedAt ? new Date(i.deletedAt).toLocaleDateString() : ""}</td>
                   <td className="p-3 text-end">
                     <div className="flex gap-3 justify-end">
-                      <button className="text-brand-600" onClick={() => restore(i.id)}>{t("restore")}</button>
-                      <button className="text-red-600" onClick={() => permanentDelete(i.id)}>{t("permanentDelete")}</button>
+                      <button className="text-brand-700 font-medium" onClick={() => restore(i.id)}>{t("restore")}</button>
+                      <button className="text-red-600 font-medium" onClick={() => permanentDelete(i.id)}>{t("permanentDelete")}</button>
                     </div>
                   </td>
                 </tr>
@@ -234,7 +234,7 @@ export default function InventoryPage() {
       )}
 
       {isManager && sel.size > 0 && (
-        <div className="sticky top-28 z-10 flex flex-wrap items-center gap-2 bg-brand-50 border border-brand-200 rounded-xl p-2">
+        <div className="sticky top-28 z-10 flex flex-wrap items-center gap-2 bg-brand-50 border border-brand-200 rounded-xl p-2.5 shadow-card">
           <span className="text-sm font-medium">{sel.size} {t("selected")}</span>
           <button className="btn-danger text-xs" onClick={bulkArchive}>{t("bulkArchive")}</button>
           <select className="touch-input h-9 w-auto text-sm" value={bulkCat} onChange={(e) => setBulkCat(e.target.value)}>
@@ -251,22 +251,27 @@ export default function InventoryPage() {
 
       <Card className="overflow-x-auto p-0">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-gray-500"><tr>
-            {isManager && <th className="p-3 w-8"></th>}
-            <th className="text-start p-3">{t("item")}</th><th className="p-3">{t("current")}</th>
-            <th className="p-3">{t("min")}</th><th className="p-3">{t("par")}</th>
-            <th className="p-3 hidden md:table-cell">{t("supplier")}</th>{isManager && <th></th>}
+          <thead className="text-gray-500"><tr>
+            {isManager && <th className="p-3.5 w-8"></th>}
+            <th className="text-start p-3.5 text-xs font-semibold uppercase tracking-wide">{t("item")}</th>
+            <th className="p-3.5 text-xs font-semibold uppercase tracking-wide">{t("current")}</th>
+            <th className="p-3.5 text-xs font-semibold uppercase tracking-wide">{t("min")}</th>
+            <th className="p-3.5 text-xs font-semibold uppercase tracking-wide">{t("par")}</th>
+            <th className="p-3.5 hidden md:table-cell text-xs font-semibold uppercase tracking-wide">{t("supplier")}</th>{isManager && <th></th>}
           </tr></thead>
           <tbody>
+            {filtered.length === 0 && (
+              <tr><td colSpan={isManager ? 7 : 5}><EmptyState label={t("noData")} /></td></tr>
+            )}
             {filtered.map((i) => (
-              <tr key={i.id} className={`border-t ${i.currentQty < i.minQty ? "bg-red-50" : ""}`}>
-                {isManager && <td className="p-3"><input type="checkbox" checked={sel.has(i.id)} onChange={() => toggleSel(sel, setSel, i.id)} /></td>}
-                <td className="p-3">{name(i)} <span className="badge bg-gray-100 ms-1">{i.kind === "PREP" ? t("prep") : t("inventory")}</span></td>
-                <td className="p-3 text-center font-medium">{i.currentQty} {i.unit}</td>
-                <td className="p-3 text-center text-gray-500">{i.minQty}</td>
-                <td className="p-3 text-center text-gray-500">{i.parQty}</td>
-                <td className="p-3 hidden md:table-cell">{i.supplier ? name(i.supplier) : "—"}</td>
-                {isManager && <td className="p-3"><button className="text-brand-600" onClick={() => setEditing(i)}>{t("edit")}</button></td>}
+              <tr key={i.id} className={`border-t border-gray-100 transition-colors hover:bg-gray-50 ${i.currentQty < i.minQty ? "bg-red-50/60" : ""}`}>
+                {isManager && <td className="p-3.5"><input type="checkbox" checked={sel.has(i.id)} onChange={() => toggleSel(sel, setSel, i.id)} /></td>}
+                <td className="p-3.5 font-medium text-gray-900">{name(i)} <Badge tone="neutral" className="ms-1">{i.kind === "PREP" ? t("prep") : t("inventory")}</Badge></td>
+                <td className="p-3.5 text-center font-semibold tabular-nums">{i.currentQty} {i.unit}</td>
+                <td className="p-3.5 text-center text-gray-500 tabular-nums">{i.minQty}</td>
+                <td className="p-3.5 text-center text-gray-500 tabular-nums">{i.parQty}</td>
+                <td className="p-3.5 hidden md:table-cell">{i.supplier ? name(i.supplier) : "—"}</td>
+                {isManager && <td className="p-3.5"><button className="text-brand-700 font-medium inline-flex items-center gap-1" onClick={() => setEditing(i)}><Pencil className="h-3.5 w-3.5" />{t("edit")}</button></td>}
               </tr>
             ))}
           </tbody>
@@ -328,9 +333,9 @@ export default function InventoryPage() {
       )}
 
       {editing && (
-        <div className="fixed inset-0 bg-black/40 flex items-end md:items-center justify-center z-30 p-0 md:p-4" onClick={() => setEditing(null)}>
-          <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-lg p-5 space-y-3 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-xl font-bold">{editing.id ? t("edit") : t("add")}</h2>
+        <div className="modal-overlay" onClick={() => setEditing(null)}>
+          <div className="modal-panel max-w-lg" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-xl font-bold text-gray-900">{editing.id ? t("edit") : t("add")}</h2>
             <div className="grid grid-cols-2 gap-3">
               <Field label="שם עברית"><Input value={editing.nameHe} onChange={(e) => setEditing({ ...editing, nameHe: e.target.value })} /></Field>
               <Field label="Name (EN)"><Input value={editing.nameEn} onChange={(e) => setEditing({ ...editing, nameEn: e.target.value })} /></Field>
@@ -404,21 +409,21 @@ export default function InventoryPage() {
 
       {/* Bulk permanent-delete result */}
       {bulkResult && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-40 p-4" onClick={() => setBulkResult(null)}>
-          <div className="bg-white rounded-2xl w-full max-w-lg p-5 space-y-3 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-xl font-bold">{t("result")}</h2>
+        <div className="modal-overlay" onClick={() => setBulkResult(null)}>
+          <div className="modal-panel max-w-lg" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-xl font-bold text-gray-900">{t("result")}</h2>
             {bulkResult.error ? (
               <p className="text-red-600">{bulkResult.error}</p>
             ) : (
               <>
                 <div className="flex gap-4 text-sm">
-                  <span className="rounded-lg bg-emerald-50 text-emerald-700 px-3 py-1.5">{t("deleted")}: <b>{bulkResult.deletedCount}</b></span>
-                  <span className="rounded-lg bg-amber-50 text-amber-700 px-3 py-1.5">{t("kept")}: <b>{bulkResult.failedCount}</b></span>
+                  <span className="rounded-xl bg-emerald-50 text-emerald-700 px-3 py-1.5 font-medium">{t("deleted")}: <b>{bulkResult.deletedCount}</b></span>
+                  <span className="rounded-xl bg-amber-50 text-amber-700 px-3 py-1.5 font-medium">{t("kept")}: <b>{bulkResult.failedCount}</b></span>
                 </div>
                 {bulkResult.failedCount > 0 && (
                   <>
                     <p className="text-xs text-gray-500">{t("cannotPermanentDelete")}</p>
-                    <ul className="divide-y text-sm">
+                    <ul className="divide-y divide-gray-100 text-sm">
                       {bulkResult.failed.map((f: any) => (
                         <li key={f.id} className="py-2 flex justify-between gap-2">
                           <span className="font-medium">{name(f)}</span>
@@ -429,7 +434,7 @@ export default function InventoryPage() {
                   </>
                 )}
                 {!bulkResult.forceDelete && bulkResult.failedCount > 0 && isAdmin && (
-                  <p className="text-xs text-red-700 border border-red-200 rounded-lg p-2 bg-red-50">
+                  <p className="text-xs text-red-700 border border-red-200 rounded-xl p-2.5 bg-red-50">
                     ⚠ {t("forceDeleteWarning").split(".")[0]}. {t("typeDeleteToConfirm").toLowerCase()}.
                   </p>
                 )}
@@ -442,8 +447,8 @@ export default function InventoryPage() {
 
       {/* Force delete confirmation — admin only, requires typing DELETE */}
       {forceDeleteOpen && isAdmin && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-40 p-4" onClick={() => setForceDeleteOpen(false)}>
-          <div className="bg-white rounded-2xl w-full max-w-lg p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-overlay bg-red-950/60" onClick={() => setForceDeleteOpen(false)}>
+          <div className="modal-panel max-w-lg space-y-4" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-2">
               <span className="text-2xl">⚠</span>
               <h2 className="text-xl font-bold text-red-700">{t("forceDeleteSelected")}</h2>
@@ -463,7 +468,7 @@ export default function InventoryPage() {
             </div>
             <div className="flex gap-2 pt-1">
               <button
-                className="flex-1 bg-red-700 text-white rounded-xl py-2.5 font-semibold text-sm disabled:opacity-40 hover:bg-red-800"
+                className="btn-danger flex-1 bg-red-700 hover:bg-red-800"
                 onClick={bulkForceDelete}
                 disabled={forceConfirmText !== "DELETE" || busy}
               >
@@ -477,9 +482,9 @@ export default function InventoryPage() {
 
       {/* Merge duplicates (admin) */}
       {mergeOpen && (
-        <div className="fixed inset-0 bg-black/40 flex items-end md:items-center justify-center z-40" onClick={() => setMergeOpen(false)}>
-          <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-md p-5 space-y-3 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-xl font-bold">{t("merge")}</h2>
+        <div className="modal-overlay" onClick={() => setMergeOpen(false)}>
+          <div className="modal-panel max-w-md" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-xl font-bold text-gray-900">{t("merge")}</h2>
             <p className="text-sm text-gray-500">{t("selectTarget")}</p>
             <ul className="space-y-1">
               {[...sel].map((id) => {

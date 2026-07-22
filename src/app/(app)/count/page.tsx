@@ -4,7 +4,8 @@ import { useI18n } from "@/lib/i18n/I18nProvider";
 import { useSession } from "next-auth/react";
 import { api } from "@/lib/fetcher";
 import { sanitizeCountEntries } from "@/lib/count";
-import { Card, Input, Spinner } from "@/components/ui";
+import { Card, Input, SearchInput, PageSpinner, EmptyState } from "@/components/ui";
+import { CheckCircle2 } from "lucide-react";
 import { CountDetailModal } from "@/components/CountDetailModal";
 import { CountHistory } from "@/components/CountHistory";
 
@@ -95,39 +96,26 @@ export default function CountPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <h1 className="text-2xl font-bold">{t("dailyCount")}</h1>
-        <div className="flex gap-2">
-          <div className="inline-flex rounded-xl bg-gray-100 p-1">
-            <button onClick={() => setTab("new")}
-              className={`px-4 py-1.5 rounded-lg text-sm font-medium ${tab === "new" ? "bg-white shadow text-brand-700" : "text-gray-500"}`}>
-              {t("newCount")}
-            </button>
+        <h1 className="text-2xl font-bold text-gray-900">{t("dailyCount")}</h1>
+        <div className="flex gap-2 flex-wrap">
+          <div className="seg">
+            <button onClick={() => setTab("new")} className={`seg-btn ${tab === "new" ? "is-active" : ""}`}>{t("newCount")}</button>
             {isManager && (
-              <button onClick={() => setTab("history")}
-                className={`px-4 py-1.5 rounded-lg text-sm font-medium ${tab === "history" ? "bg-white shadow text-brand-700" : "text-gray-500"}`}>
-                {t("countHistory")}
-              </button>
+              <button onClick={() => setTab("history")} className={`seg-btn ${tab === "history" ? "is-active" : ""}`}>{t("countHistory")}</button>
             )}
           </div>
           {tab === "new" && !countId && (
-            <div className="inline-flex rounded-xl bg-gray-100 p-1 flex-wrap">
-              <button onClick={() => setScope("FULL")}
-                className={`px-4 py-1.5 rounded-lg text-sm font-medium ${scope === "FULL" ? "bg-white shadow text-brand-700" : "text-gray-500"}`}>
-                {t("fullCount")}
-              </button>
+            <div className="seg">
+              <button onClick={() => setScope("FULL")} className={`seg-btn ${scope === "FULL" ? "is-active" : ""}`}>{t("fullCount")}</button>
               {locations.map((l) => (
-                <button key={l.id} onClick={() => setScope(l.id)}
-                  className={`px-4 py-1.5 rounded-lg text-sm font-medium ${scope === l.id ? "bg-white shadow text-brand-700" : "text-gray-500"}`}>
-                  {name(l)}
-                </button>
+                <button key={l.id} onClick={() => setScope(l.id)} className={`seg-btn ${scope === l.id ? "is-active" : ""}`}>{name(l)}</button>
               ))}
             </div>
           )}
           {tab === "new" && !countId && scope === "FULL" && (
-            <div className="inline-flex rounded-xl bg-gray-100 p-1">
+            <div className="seg">
               {(["KITCHEN", "FLOOR"] as const).map((a) => (
-                <button key={a} onClick={() => setArea(a)}
-                  className={`px-4 py-1.5 rounded-lg text-sm font-medium ${area === a ? "bg-white shadow text-brand-700" : "text-gray-500"}`}>
+                <button key={a} onClick={() => setArea(a)} className={`seg-btn ${area === a ? "is-active" : ""}`}>
                   {t(a === "KITCHEN" ? "kitchen" : "floor")}
                 </button>
               ))}
@@ -139,11 +127,11 @@ export default function CountPage() {
       {tab === "history" && isManager && <CountHistory />}
 
       {tab === "new" && isManager && pending.length > 0 && (
-        <Card>
+        <Card className="tone-peach border-transparent">
           <h2 className="font-semibold mb-2">{t("pendingApprovals")}</h2>
-          <ul className="divide-y">
+          <ul className="divide-y divide-black/5">
             {pending.map((c) => (
-              <li key={c.id} className="py-2 flex items-center justify-between gap-2 flex-wrap">
+              <li key={c.id} className="py-2.5 flex items-center justify-between gap-2 flex-wrap">
                 <span>{new Date(c.businessDay).toLocaleDateString()} · {c.countedBy?.name} · {c._count?.entries} {t("item")}</span>
                 <span className="flex gap-2 flex-wrap">
                   <button className="btn-primary text-sm" onClick={() => openDetail(c.id)}>{t("viewDetails")}</button>
@@ -162,28 +150,29 @@ export default function CountPage() {
           {scope === "FULL" ? t("fullCount") : name(locations.find((l) => l.id === scope))} →
         </button>
       ) : submitted ? (
-        <Card className="text-center space-y-3">
-          <p className="text-emerald-700 font-medium text-lg">✓ {t("submit")}</p>
+        <Card className="tone-mint border-transparent text-center space-y-3 py-8">
+          <CheckCircle2 className="h-9 w-9 mx-auto text-mint-ink" />
+          <p className="text-mint-ink font-semibold text-lg">{t("submit")}</p>
           <a href="/dashboard" className="btn-primary inline-flex">{t("dashboard")} →</a>
         </Card>
       ) : (
         <>
-          <div className="sticky top-28 z-10 bg-gray-50 py-2 space-y-2">
-            <Input placeholder={t("search")} value={search} onChange={(e) => setSearch(e.target.value)} />
+          <div className="sticky top-0 md:top-0 z-10 bg-gray-50/95 backdrop-blur py-3 space-y-2 -mx-4 px-4 md:mx-0 md:px-0">
+            <SearchInput placeholder={t("search")} value={search} onChange={(e) => setSearch(e.target.value)} />
             <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-              <div className="h-full bg-brand-500 transition-all" style={{ width: `${progress}%` }} />
+              <div className="h-full bg-brand-500 rounded-full transition-all duration-300 ease-soft" style={{ width: `${progress}%` }} />
             </div>
-            <div className="text-sm text-gray-500">{t("progress")}: {counted}/{items.length} ({progress}%)</div>
+            <div className="text-sm text-gray-500 font-medium">{t("progress")}: {counted}/{items.length} ({progress}%)</div>
           </div>
 
           {Object.entries(grouped).map(([cat, list]) => (
             <Card key={cat}>
-              <h3 className="font-semibold mb-2">{cat}</h3>
-              <div className="space-y-2">
+              <h3 className="font-semibold mb-3">{cat}</h3>
+              <div className="divide-y divide-gray-100">
                 {list.map((i) => (
-                  <div key={i.id} className="flex items-center gap-3">
+                  <div key={i.id} className="flex items-center gap-3 py-2.5">
                     <span className="flex-1">{name(i)} <span className="text-gray-400 text-sm">({i.unit})</span></span>
-                    <input inputMode="decimal" className="touch-input w-28 text-center"
+                    <input inputMode="decimal" className="touch-input w-28 text-center font-semibold tabular-nums"
                       value={values[i.id] ?? ""} onChange={(e) => setValues((v) => ({ ...v, [i.id]: e.target.value }))} />
                   </div>
                 ))}
@@ -194,7 +183,7 @@ export default function CountPage() {
           <Card>
             <Input placeholder={t("notes")} value={notes} onChange={(e) => setNotes(e.target.value)} />
           </Card>
-          {error && <p className="text-red-600 text-sm text-center">{error}</p>}
+          {error && <p className="text-red-600 text-sm text-center font-medium">{error}</p>}
           <button className="btn-primary w-full h-14 text-lg" disabled={saving} onClick={submit}>
             {saving ? "…" : t("submit")}
           </button>

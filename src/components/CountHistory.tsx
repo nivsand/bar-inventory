@@ -3,14 +3,14 @@ import { useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import { useSession } from "next-auth/react";
 import { api } from "@/lib/fetcher";
-import { Card, Spinner } from "@/components/ui";
+import { Card, Spinner, Badge, EmptyState } from "@/components/ui";
 import { CountDetailModal } from "@/components/CountDetailModal";
 
-const STATUS_TONE: Record<string, string> = {
-  DRAFT: "bg-gray-100 text-gray-600",
-  SUBMITTED: "bg-amber-100 text-amber-800",
-  APPROVED: "bg-emerald-100 text-emerald-700",
-  REJECTED: "bg-red-100 text-red-700",
+const STATUS_TONE: Record<string, "neutral" | "warn" | "ok" | "danger"> = {
+  DRAFT: "neutral",
+  SUBMITTED: "warn",
+  APPROVED: "ok",
+  REJECTED: "danger",
 };
 
 // Self-contained Inventory Count History: chronological list with filters
@@ -63,30 +63,32 @@ export function CountHistory() {
         </div>
       </Card>
 
-      <Card className="p-0 overflow-x-auto">
+      <Card className="p-0 overflow-hidden">
         {counts === null ? <div className="flex justify-center py-12"><Spinner /></div> : counts.length === 0 ? (
-          <p className="p-4 text-gray-400">{t("noData")}</p>
+          <EmptyState label={t("noData")} />
         ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-gray-500"><tr>
-              <th className="text-start p-3 whitespace-nowrap">{t("date")}</th>
-              <th className="text-start p-3">{t("employee")}</th>
-              <th className="p-3">{t("location")}</th>
-              <th className="p-3">{t("item")}</th>
-              <th className="p-3">{t("status")}</th>
-              <th className="p-3"></th>
-            </tr></thead>
-            <tbody>{counts.map((c) => (
-              <tr key={c.id} className="border-t">
-                <td className="p-3 whitespace-nowrap">{new Date(c.submittedAt || c.businessDay).toLocaleString()}</td>
-                <td className="p-3">{c.countedBy?.name}</td>
-                <td className="p-3 text-center text-gray-500">{c.location ? name(c.location) : t("fullCount")}</td>
-                <td className="p-3 text-center text-gray-500">{c._count?.entries}</td>
-                <td className="p-3 text-center"><span className={`badge ${STATUS_TONE[c.status] || "bg-gray-100"}`}>{c.status}</span></td>
-                <td className="p-3 text-end"><button className="text-brand-600" onClick={() => openDetail(c.id)}>{t("viewDetails")}</button></td>
-              </tr>
-            ))}</tbody>
-          </table>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-gray-500"><tr>
+                <th className="text-start p-3.5 whitespace-nowrap text-xs font-semibold uppercase tracking-wide">{t("date")}</th>
+                <th className="text-start p-3.5 text-xs font-semibold uppercase tracking-wide">{t("employee")}</th>
+                <th className="p-3.5 text-xs font-semibold uppercase tracking-wide">{t("location")}</th>
+                <th className="p-3.5 text-xs font-semibold uppercase tracking-wide">{t("item")}</th>
+                <th className="p-3.5 text-xs font-semibold uppercase tracking-wide">{t("status")}</th>
+                <th className="p-3.5"></th>
+              </tr></thead>
+              <tbody>{counts.map((c) => (
+                <tr key={c.id} className="border-t border-gray-100 hover:bg-gray-50 transition-colors">
+                  <td className="p-3.5 whitespace-nowrap">{new Date(c.submittedAt || c.businessDay).toLocaleString()}</td>
+                  <td className="p-3.5 font-medium text-gray-900">{c.countedBy?.name}</td>
+                  <td className="p-3.5 text-center text-gray-500">{c.location ? name(c.location) : t("fullCount")}</td>
+                  <td className="p-3.5 text-center text-gray-500 tabular-nums">{c._count?.entries}</td>
+                  <td className="p-3.5 text-center"><Badge tone={STATUS_TONE[c.status] ?? "neutral"}>{c.status}</Badge></td>
+                  <td className="p-3.5 text-end"><button className="text-brand-700 font-medium" onClick={() => openDetail(c.id)}>{t("viewDetails")}</button></td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
         )}
       </Card>
 

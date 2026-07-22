@@ -3,13 +3,14 @@ import { useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import { useSession } from "next-auth/react";
 import { api } from "@/lib/fetcher";
-import { Card, Spinner } from "@/components/ui";
+import { Card, PageSpinner, Badge, EmptyState } from "@/components/ui";
+import { Plus } from "lucide-react";
 import { computeCycleStart } from "@/server/engines/ordering";
 
-const STATUS_TONE: Record<string, string> = {
-  NEED_TO_ORDER: "bg-amber-100 text-amber-800", ORDERED: "bg-blue-100 text-blue-800",
-  ARRIVED: "bg-emerald-100 text-emerald-800", PARTIALLY_DELIVERED: "bg-orange-100 text-orange-800",
-  MISSING_ITEMS: "bg-red-100 text-red-800", PROBLEM: "bg-red-100 text-red-800", CANCELLED: "bg-gray-100 text-gray-600",
+const STATUS_TONE: Record<string, "warn" | "info" | "ok" | "danger" | "neutral"> = {
+  NEED_TO_ORDER: "warn", ORDERED: "info",
+  ARRIVED: "ok", PARTIALLY_DELIVERED: "warn",
+  MISSING_ITEMS: "danger", PROBLEM: "danger", CANCELLED: "neutral",
 };
 
 type Named = { nameHe?: string | null; nameEn?: string | null };
@@ -144,11 +145,11 @@ export default function OrdersPage() {
     catch (e: any) { alert(e.message); }
   }
 
-  if (loading) return <div className="flex justify-center py-20"><Spinner /></div>;
+  if (loading) return <PageSpinner />;
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">{t("orders")}</h1>
+      <h1 className="text-2xl font-bold text-gray-900">{t("orders")}</h1>
 
       <section className="space-y-4">
         <h2 className="font-semibold text-lg">{t("suggestedQty")} · {t("generateOrder")}</h2>
@@ -161,7 +162,7 @@ export default function OrdersPage() {
             );
           });
           return <>
-            {pending.length === 0 && <Card><p className="text-gray-400">{t("noData")}</p></Card>}
+            {pending.length === 0 && <Card><EmptyState label={t("noData")} /></Card>}
             {pending.map((g: any) => (
               <Card key={g.supplier.id}>
                 <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
@@ -216,7 +217,7 @@ export default function OrdersPage() {
       ].map((sectionDef) => (
         <section key={sectionDef.key} className="space-y-3">
           <h2 className="font-semibold text-lg">{t(sectionDef.labelKey)} ({sectionDef.list.length})</h2>
-          {sectionDef.list.length === 0 && <Card><p className="text-gray-400">{t("noData")}</p></Card>}
+          {sectionDef.list.length === 0 && <Card><EmptyState label={t("noData")} /></Card>}
           {sectionDef.list.map((o) => {
             const isOpen = o.status === "NEED_TO_ORDER";
             const editable = o.status !== "CANCELLED" && o.status !== "ARRIVED";
@@ -225,8 +226,8 @@ export default function OrdersPage() {
               <Card key={o.id}>
                 <div className="flex justify-between items-center gap-2 flex-wrap">
                   <div>
-                    <span className="font-semibold">{name(o.supplier)}</span>
-                    <span className={`badge ms-2 ${STATUS_TONE[o.status]}`}>{o.status}</span>
+                    <span className="font-semibold text-gray-900">{name(o.supplier)}</span>
+                    <Badge tone={STATUS_TONE[o.status] ?? "neutral"} className="ms-2">{o.status}</Badge>
                     <p className="text-sm text-gray-400">
                       {new Date(o.createdAt).toLocaleString()} · {o.items.length} {t("item")}
                       {o.createdBy?.name && <> · {o.createdBy.name}</>}
@@ -259,7 +260,7 @@ export default function OrdersPage() {
                         <button className="btn-ghost text-sm" onClick={() => { setAddTo(null); setAddForm({ itemId: "", qty: "" }); }}>{t("cancel")}</button>
                       </span>
                     ) : (
-                      <button className="btn-ghost text-sm" onClick={() => { setAddTo(o.id); setAddForm({ itemId: "", qty: "" }); }}>+ {t("addProduct")}</button>
+                      <button className="btn-ghost text-sm" onClick={() => { setAddTo(o.id); setAddForm({ itemId: "", qty: "" }); }}><Plus className="h-3.5 w-3.5" />{t("addProduct")}</button>
                     )
                   )}
                 </div>
@@ -278,10 +279,10 @@ export default function OrdersPage() {
       ))}
 
       {msg && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-30 p-4" onClick={() => setMsg(null)}>
-          <div className="bg-white rounded-2xl w-full max-w-lg p-5 space-y-3" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-xl font-bold">{name(msg.supplier)}</h2>
-            <textarea className="w-full h-40 border rounded-xl p-3 text-sm" defaultValue={msg.text} id="ordermsg" dir="auto" />
+        <div className="modal-overlay" onClick={() => setMsg(null)}>
+          <div className="modal-panel max-w-lg" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-xl font-bold text-gray-900">{name(msg.supplier)}</h2>
+            <textarea className="w-full h-40 border border-gray-200 rounded-xl p-3 text-sm focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none" defaultValue={msg.text} id="ordermsg" dir="auto" />
             <div className="flex gap-2 flex-wrap">
               {msg.supplier.whatsapp && (
                 <a className="btn-primary" target="_blank" rel="noreferrer"

@@ -4,8 +4,8 @@ import React from "react";
 export type Slice = { label: string; value: number };
 
 const COLORS = [
-  "#2f82fb", "#16a34a", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4",
-  "#ec4899", "#84cc16", "#f97316", "#14b8a6", "#a855f7", "#64748b",
+  "#CE7A22", "#25794D", "#6B4A9C", "#BE4335", "#215F8C", "#9C5B15",
+  "#4C9C7A", "#A66A1F", "#7C3F55", "#3F8F79", "#C2761F", "#8C826E",
 ];
 
 // Dependency-free, responsive SVG pie chart with a wrapping legend.
@@ -33,16 +33,16 @@ export function PieChart({ data }: { data: Slice[] }) {
   });
 
   return (
-    <div className="flex flex-col md:flex-row items-center gap-4 p-4">
+    <div className="flex flex-col md:flex-row items-center gap-6 p-5">
       <svg viewBox="0 0 220 220" className="w-56 max-w-full shrink-0" role="img" aria-label="Pie chart">
-        {arcs.map((a, i) => <path key={i} d={a.path} fill={a.color} stroke="#fff" strokeWidth={1} />)}
+        {arcs.map((a, i) => <path key={i} d={a.path} fill={a.color} stroke="#fff" strokeWidth={2} />)}
       </svg>
-      <ul className="w-full grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-sm">
+      <ul className="w-full grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-sm">
         {arcs.map((a, i) => (
-          <li key={i} className="flex items-center gap-2 min-w-0">
-            <span className="inline-block h-3 w-3 rounded-sm shrink-0" style={{ background: a.color }} />
-            <span className="truncate flex-1">{a.label}</span>
-            <span className="text-gray-500 whitespace-nowrap">{a.value} · {a.pct}%</span>
+          <li key={i} className="flex items-center gap-2.5 min-w-0">
+            <span className="inline-block h-2.5 w-2.5 rounded-[3px] shrink-0" style={{ background: a.color }} />
+            <span className="truncate flex-1 font-medium text-gray-700">{a.label}</span>
+            <span className="text-gray-500 whitespace-nowrap tabular-nums">{a.value} · {a.pct}%</span>
           </li>
         ))}
       </ul>

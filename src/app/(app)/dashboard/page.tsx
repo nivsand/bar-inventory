@@ -4,14 +4,18 @@ import Link from "next/link";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import { TKey } from "@/lib/i18n/translations";
 import { api } from "@/lib/fetcher";
-import { Card, Stat, Spinner } from "@/components/ui";
+import { Card, Stat, PageSpinner, Badge, EmptyState } from "@/components/ui";
+import { AlertTriangle, ChevronRight } from "lucide-react";
 
 function ActionTile({ href, labelKey, hint }: { href: string; labelKey: TKey; hint?: string }) {
   const { t } = useI18n();
   return (
-    <Link href={href} className="card flex flex-col gap-1 hover:bg-gray-50 active:scale-95 transition">
-      <span className="font-semibold">{t(labelKey)}</span>
-      {hint && <span className="text-sm text-gray-500">{hint}</span>}
+    <Link href={href} className="card flex items-center justify-between gap-2 hover:shadow-card-hover hover:-translate-y-0.5 active:scale-[0.98] transition">
+      <span className="flex flex-col gap-1">
+        <span className="font-semibold text-gray-900">{t(labelKey)}</span>
+        {hint && <span className="text-sm text-gray-500">{hint}</span>}
+      </span>
+      <ChevronRight className="h-4 w-4 flex-none text-gray-300 rtl:rotate-180" />
     </Link>
   );
 }
@@ -20,27 +24,27 @@ export default function Dashboard() {
   const { t, name } = useI18n();
   const [data, setData] = useState<any>(null);
   useEffect(() => { api("/api/dashboard").then(setData).catch(console.error); }, []);
-  if (!data) return <div className="flex justify-center py-20"><Spinner /></div>;
+  if (!data) return <PageSpinner />;
   const c = data.counts;
 
   const Greeting = (
     <div className="flex items-center gap-2 flex-wrap">
-      <h1 className="text-2xl font-bold">{t("hi")}, {data.user?.name}</h1>
+      <h1 className="text-2xl font-bold text-gray-900">{t("hi")}, {data.user?.name}</h1>
       {data.user?.area && (
-        <span className="badge bg-brand-100 text-brand-700">{t(data.user.area === "KITCHEN" ? "kitchen" : "floor")}</span>
+        <Badge tone="warn">{t(data.user.area === "KITCHEN" ? "kitchen" : "floor")}</Badge>
       )}
     </div>
   );
 
   const Alerts = (
     (c.lowStock || c.pendingDeliveries || c.pendingApprovals || c.overduePrep) ? (
-      <Card className="border-amber-200">
-        <h2 className="font-semibold mb-2 text-amber-800">{t("alerts")}</h2>
+      <Card className="tone-peach border-transparent">
+        <h2 className="font-semibold mb-3 flex items-center gap-1.5"><AlertTriangle className="h-4 w-4" />{t("alerts")}</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
-          {c.lowStock > 0 && <Link href="/inventory" className="rounded-lg bg-amber-50 p-2"><b>{c.lowStock}</b> · {t("lowStock")}</Link>}
-          {c.pendingDeliveries > 0 && <Link href="/deliveries" className="rounded-lg bg-amber-50 p-2"><b>{c.pendingDeliveries}</b> · {t("pendingReports")}</Link>}
-          {c.pendingApprovals > 0 && <Link href="/count" className="rounded-lg bg-amber-50 p-2"><b>{c.pendingApprovals}</b> · {t("pendingApprovals")}</Link>}
-          {c.overduePrep > 0 && <Link href="/prep" className="rounded-lg bg-red-50 p-2"><b>{c.overduePrep}</b> · {t("overduePrep")}</Link>}
+          {c.lowStock > 0 && <Link href="/inventory" className="rounded-xl bg-white/70 p-3 font-medium hover:bg-white transition-colors"><b className="text-lg">{c.lowStock}</b> · {t("lowStock")}</Link>}
+          {c.pendingDeliveries > 0 && <Link href="/deliveries" className="rounded-xl bg-white/70 p-3 font-medium hover:bg-white transition-colors"><b className="text-lg">{c.pendingDeliveries}</b> · {t("pendingReports")}</Link>}
+          {c.pendingApprovals > 0 && <Link href="/count" className="rounded-xl bg-white/70 p-3 font-medium hover:bg-white transition-colors"><b className="text-lg">{c.pendingApprovals}</b> · {t("pendingApprovals")}</Link>}
+          {c.overduePrep > 0 && <Link href="/prep" className="rounded-xl bg-red-50 p-3 font-medium text-red-700 hover:bg-red-100 transition-colors"><b className="text-lg">{c.overduePrep}</b> · {t("overduePrep")}</Link>}
         </div>
       </Card>
     ) : null
@@ -78,12 +82,12 @@ export default function Dashboard() {
 
         <Card>
           <h2 className="font-semibold mb-2">{t("todaysTasks")} · {t("prepTasks")}</h2>
-          {data.prepTasks.length === 0 ? <p className="text-gray-400">{t("noData")}</p> : (
-            <ul className="divide-y">
+          {data.prepTasks.length === 0 ? <EmptyState label={t("noData")} /> : (
+            <ul className="divide-y divide-gray-100">
               {data.prepTasks.map((tk: any) => (
-                <li key={tk.id} className="py-2 flex justify-between">
+                <li key={tk.id} className="py-2.5 flex justify-between">
                   <span>{name(tk.prepItem.item)} — {tk.targetQty} {tk.prepItem.item.unit}</span>
-                  <Link href="/prep" className="text-brand-600">{tk.status}</Link>
+                  <Link href="/prep" className="text-brand-600 font-medium">{tk.status}</Link>
                 </li>
               ))}
             </ul>
@@ -92,12 +96,12 @@ export default function Dashboard() {
 
         <Card>
           <h2 className="font-semibold mb-2">{t("pendingReports")}</h2>
-          {data.pendingDeliveries.length === 0 ? <p className="text-gray-400">{t("noData")}</p> : (
-            <ul className="divide-y">
+          {data.pendingDeliveries.length === 0 ? <EmptyState label={t("noData")} /> : (
+            <ul className="divide-y divide-gray-100">
               {data.pendingDeliveries.map((d: any) => (
-                <li key={d.id} className="py-2 flex justify-between">
+                <li key={d.id} className="py-2.5 flex justify-between items-center">
                   <span>{d.receivedBy?.name} · {new Date(d.receivedAt).toLocaleDateString()}</span>
-                  <span className="badge bg-amber-100 text-amber-800">{t("statusSubmitted")}</span>
+                  <Badge tone="warn">{t("statusSubmitted")}</Badge>
                 </li>
               ))}
             </ul>
@@ -136,13 +140,13 @@ export default function Dashboard() {
       </div>
 
       {data.critical.length > 0 && (
-        <Card>
+        <Card className="border-red-100">
           <h2 className="font-semibold mb-2 text-red-700">{t("critical")} · {t("lowStock")}</h2>
-          <ul className="divide-y">
+          <ul className="divide-y divide-gray-100">
             {data.critical.map((i: any) => (
-              <li key={i.id} className="py-2 flex justify-between">
+              <li key={i.id} className="py-2.5 flex justify-between">
                 <span>{name(i)}</span>
-                <span className="text-red-600 font-medium">{i.currentQty}/{i.minQty} {i.unit}</span>
+                <span className="text-red-600 font-semibold tabular-nums">{i.currentQty}/{i.minQty} {i.unit}</span>
               </li>
             ))}
           </ul>
@@ -153,11 +157,11 @@ export default function Dashboard() {
         {data.pendingCounts.length > 0 && (
           <Card>
             <h2 className="font-semibold mb-2">{t("approveCounts")}</h2>
-            <ul className="divide-y">
+            <ul className="divide-y divide-gray-100">
               {data.pendingCounts.map((p: any) => (
-                <li key={p.id} className="py-2 flex justify-between">
+                <li key={p.id} className="py-2.5 flex justify-between">
                   <span>{new Date(p.businessDay).toLocaleDateString()} · {p.countedBy?.name}</span>
-                  <Link href="/count" className="text-brand-600">{t("review")}</Link>
+                  <Link href="/count" className="text-brand-600 font-medium">{t("review")}</Link>
                 </li>
               ))}
             </ul>
@@ -166,11 +170,11 @@ export default function Dashboard() {
         {data.pendingDeliveries.length > 0 && (
           <Card>
             <h2 className="font-semibold mb-2">{t("approveReceived")}</h2>
-            <ul className="divide-y">
+            <ul className="divide-y divide-gray-100">
               {data.pendingDeliveries.map((d: any) => (
-                <li key={d.id} className="py-2 flex justify-between">
+                <li key={d.id} className="py-2.5 flex justify-between">
                   <span>{d.receivedBy?.name} · {new Date(d.receivedAt).toLocaleDateString()}</span>
-                  <Link href="/deliveries" className="text-brand-600">{t("review")}</Link>
+                  <Link href="/deliveries" className="text-brand-600 font-medium">{t("review")}</Link>
                 </li>
               ))}
             </ul>

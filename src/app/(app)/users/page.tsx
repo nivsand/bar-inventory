@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import { useSession } from "next-auth/react";
 import { api } from "@/lib/fetcher";
-import { Card, Field, Input, Spinner } from "@/components/ui";
+import { Card, Field, Input, Badge } from "@/components/ui";
+import { Pencil, Trash2, CheckCircle2 } from "lucide-react";
 
 type U = { id: string; username: string; name: string; email?: string | null; role: string; area?: string | null; isActive: boolean };
 
@@ -90,7 +91,7 @@ export default function UsersPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold">{isManager ? t("users") : t("myAccount")}</h1>
+      <h1 className="text-2xl font-bold text-gray-900">{isManager ? t("users") : t("myAccount")}</h1>
 
       {/* My account — change own password (every role) */}
       <Card className="space-y-3 max-w-md">
@@ -101,7 +102,11 @@ export default function UsersPage() {
           <Field label={t("newPassword")}><Input type="password" autoComplete="new-password" value={myPw.next} onChange={(e) => setMyPw({ ...myPw, next: e.target.value })} /></Field>
           <Field label={t("confirmPassword")}><Input type="password" autoComplete="new-password" value={myPw.confirm} onChange={(e) => setMyPw({ ...myPw, confirm: e.target.value })} /></Field>
           <p className="text-xs text-gray-400">{t("passwordRule")}</p>
-          {myPwMsg && <p className={`text-sm ${myPwMsg.ok ? "text-emerald-700" : "text-red-600"}`}>{myPwMsg.ok ? "✓ " : ""}{myPwMsg.text}</p>}
+          {myPwMsg && (
+            <p className={`text-sm font-medium flex items-center gap-1.5 ${myPwMsg.ok ? "text-emerald-700" : "text-red-600"}`}>
+              {myPwMsg.ok && <CheckCircle2 className="h-4 w-4" />}{myPwMsg.text}
+            </p>
+          )}
           <button className="btn-primary w-full" disabled={!myPw.current || !myPw.next || !myPw.confirm}>{t("changePassword")}</button>
         </form>
       </Card>
@@ -134,25 +139,28 @@ export default function UsersPage() {
         <button className="btn-primary" disabled={!form.username || !form.name} onClick={add}>{t("add")}</button>
       </Card>
 
-      <Card className="p-0 overflow-x-auto">
+      <Card className="p-0 overflow-hidden">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-gray-500"><tr>
-            <th className="text-start p-3">{t("username")}</th><th className="text-start p-3">Name</th>
-            <th className="p-3">{t("role")}</th><th className="p-3">{t("active")}</th><th className="p-3"></th>
+          <thead className="text-gray-500"><tr>
+            <th className="text-start p-3.5 text-xs font-semibold uppercase tracking-wide">{t("username")}</th>
+            <th className="text-start p-3.5 text-xs font-semibold uppercase tracking-wide">Name</th>
+            <th className="p-3.5 text-xs font-semibold uppercase tracking-wide">{t("role")}</th>
+            <th className="p-3.5 text-xs font-semibold uppercase tracking-wide">{t("active")}</th><th className="p-3.5"></th>
           </tr></thead>
           <tbody>{users.map((u) => (
-            <tr key={u.id} className={`border-t ${u.isActive ? "" : "opacity-50"}`}>
-              <td className="p-3">{u.username}</td>
-              <td className="p-3">{u.name}{u.id === myId && <span className="text-gray-400"> ({t("me")})</span>}</td>
-              <td className="p-3 text-center"><span className="badge bg-gray-100">{u.role}</span></td>
-              <td className="p-3 text-center">{u.isActive ? "✓" : "—"}</td>
-              <td className="p-3">
-                <div className="flex gap-2 justify-end">
-                  {canManage(u) && <button className="text-brand-600" onClick={() => openEdit(u)}>{t("edit")}</button>}
+            <tr key={u.id} className={`border-t border-gray-100 hover:bg-gray-50 transition-colors ${u.isActive ? "" : "opacity-50"}`}>
+              <td className="p-3.5">{u.username}</td>
+              <td className="p-3.5 font-medium text-gray-900">{u.name}{u.id === myId && <span className="text-gray-400 font-normal"> ({t("me")})</span>}</td>
+              <td className="p-3.5 text-center"><Badge tone="neutral">{u.role}</Badge></td>
+              <td className="p-3.5 text-center">{u.isActive ? <CheckCircle2 className="h-4 w-4 text-emerald-600 mx-auto" /> : "—"}</td>
+              <td className="p-3.5">
+                <div className="flex gap-3 justify-end">
+                  {canManage(u) && <button className="text-brand-700 font-medium inline-flex items-center gap-1" onClick={() => openEdit(u)}><Pencil className="h-3.5 w-3.5" />{t("edit")}</button>}
                   {isAdmin && u.id !== myId && (
                     <>
-                      <button className="text-amber-600" onClick={() => setActive(u, !u.isActive)}>{u.isActive ? t("deactivate") : t("activate")}</button>
-                      <button className="text-red-600" onClick={() => remove(u)}>{t("delete")}</button>
+                      <button className="text-amber-700 font-medium" onClick={() => setActive(u, !u.isActive)}>{u.isActive ? t("deactivate") : t("activate")}</button>
+                      <button className="text-red-600 font-medium inline-flex items-center gap-1" onClick={() => remove(u)}><Trash2 className="h-3.5 w-3.5" />{t("delete")}</button>
                     </>
                   )}
                 </div>
@@ -160,12 +168,13 @@ export default function UsersPage() {
             </tr>
           ))}</tbody>
         </table>
+        </div>
       </Card>
 
       {editing && (
-        <div className="fixed inset-0 bg-black/40 flex items-end md:items-center justify-center z-30" onClick={() => setEditing(null)}>
-          <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-md p-5 space-y-3" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-xl font-bold">{t("edit")}</h2>
+        <div className="modal-overlay" onClick={() => setEditing(null)}>
+          <div className="modal-panel max-w-md" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-xl font-bold text-gray-900">{t("edit")}</h2>
             <Field label={t("username")}><Input value={editing.username} onChange={(e) => setEditing({ ...editing, username: e.target.value })} /></Field>
             <Field label="Name"><Input value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} /></Field>
             <Field label={`${t("email")} (${t("optional")})`}><Input value={editing.email || ""} onChange={(e) => setEditing({ ...editing, email: e.target.value })} /></Field>

@@ -3,8 +3,9 @@ import { useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import { useSession } from "next-auth/react";
 import { api } from "@/lib/fetcher";
-import { Card, Input, Field, Spinner } from "@/components/ui";
+import { Card, Input, Field, SearchInput, PageSpinner, EmptyState } from "@/components/ui";
 import { fmtDays } from "@/lib/format";
+import { Plus, Pencil, Package, CalendarClock, Truck as TruckIcon, Wallet } from "lucide-react";
 
 const WD = [0,1,2,3,4,5,6];
 const blank = { nameHe: "", nameEn: "", contactPerson: "", phone: "", whatsapp: "", email: "",
@@ -60,29 +61,29 @@ export default function SuppliersPage() {
     setSel(new Set()); load(); if (showArchived) loadArchived();
   }
 
-  if (loading) return <div className="flex justify-center py-20"><Spinner /></div>;
+  if (loading) return <PageSpinner />;
   const wdLabel = (d: number) => fmtDays([d], locale);
   const shown = sups.filter((s) => !search || name(s).toLowerCase().includes(search.toLowerCase()) || s.nameHe.includes(search) || s.nameEn.toLowerCase().includes(search.toLowerCase()) || (s.contactPerson || "").toLowerCase().includes(search.toLowerCase()));
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2">
-        <h1 className="text-2xl font-bold">{t("suppliers")}</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{t("suppliers")}</h1>
         <div className="flex gap-2">
           {isAdmin && <button className="btn-ghost text-sm" onClick={toggleArchived}>{showArchived ? t("hideArchived") : t("viewArchived")}</button>}
-          <button className="btn-primary" onClick={() => setEditing({ ...blank })}>+ {t("add")}</button>
+          <button className="btn-primary" onClick={() => setEditing({ ...blank })}><Plus className="h-4 w-4" />{t("add")}</button>
         </div>
       </div>
 
       {isAdmin && showArchived && (
-        <Card className="border-amber-200">
-          <div className="text-amber-800 text-sm font-medium mb-2">{t("archived")}</div>
-          {archived.length === 0 ? <p className="text-gray-400 text-sm">{t("noData")}</p> : (
-            <ul className="divide-y">
+        <Card className="tone-peach border-transparent">
+          <div className="text-sm font-semibold mb-2">{t("archived")}</div>
+          {archived.length === 0 ? <EmptyState label={t("noData")} /> : (
+            <ul className="divide-y divide-black/5">
               {archived.map((s) => (
                 <li key={s.id} className="py-2 flex justify-between">
-                  <span>{name(s)} <span className="text-gray-400 text-xs">{s.deletedAt ? new Date(s.deletedAt).toLocaleDateString() : ""}</span></span>
-                  <button className="text-brand-600" onClick={() => restore(s.id)}>{t("restore")}</button>
+                  <span>{name(s)} <span className="text-xs opacity-70">{s.deletedAt ? new Date(s.deletedAt).toLocaleDateString() : ""}</span></span>
+                  <button className="font-medium" onClick={() => restore(s.id)}>{t("restore")}</button>
                 </li>
               ))}
             </ul>
@@ -90,44 +91,45 @@ export default function SuppliersPage() {
         </Card>
       )}
 
-      <Input placeholder={t("search")} value={search} onChange={(e) => setSearch(e.target.value)} />
+      <SearchInput placeholder={t("search")} value={search} onChange={(e) => setSearch(e.target.value)} />
 
       {sel.size > 0 && (
-        <div className="flex flex-wrap items-center gap-2 bg-brand-50 border border-brand-200 rounded-xl p-2">
+        <div className="flex flex-wrap items-center gap-2 bg-brand-50 border border-brand-200 rounded-xl p-2.5 shadow-card">
           <span className="text-sm font-medium">{sel.size} {t("selected")}</span>
           <button className="btn-danger text-xs" onClick={bulkArchive}>{t("bulkArchive")}</button>
           <button className="btn-ghost text-xs" onClick={() => setSel(new Set())}>{t("cancel")}</button>
         </div>
       )}
 
+      {shown.length === 0 && <Card><EmptyState label={t("noData")} /></Card>}
       <div className="grid md:grid-cols-2 gap-3">
         {shown.map((s) => (
-          <Card key={s.id}>
+          <Card key={s.id} className="hover:shadow-card-hover transition-shadow duration-200">
             <div className="flex justify-between items-start gap-2">
-              <div className="flex gap-2">
+              <div className="flex gap-2.5">
                 <input type="checkbox" className="mt-1.5" checked={sel.has(s.id)} onChange={() => toggleSel(s.id)} />
                 <div>
-                  <h3 className="font-semibold">{name(s)}</h3>
+                  <h3 className="font-semibold text-gray-900">{name(s)}</h3>
                   <p className="text-sm text-gray-500">{s.contactPerson} {s.phone && `· ${s.phone}`}</p>
-                  {s.email && <p className="text-xs text-gray-400">✉ {s.email} {s.whatsapp && `· wa ${s.whatsapp}`}</p>}
+                  {s.email && <p className="text-xs text-gray-400 mt-0.5">{s.email} {s.whatsapp && `· wa ${s.whatsapp}`}</p>}
                 </div>
               </div>
-              <button className="text-brand-600 text-sm" onClick={() => setEditing(s)}>{t("edit")}</button>
+              <button className="text-brand-700 text-sm font-medium inline-flex items-center gap-1" onClick={() => setEditing(s)}><Pencil className="h-3.5 w-3.5" />{t("edit")}</button>
             </div>
-            <div className="text-sm text-gray-600 mt-2 space-y-1">
-              <div>📦 {s.orderingMethod} {s.orderCutoffTime && `· ${s.orderCutoffTime}`}</div>
-              <div>🗓 {t("orders")}: {fmtDays(s.orderDeadlineDays, locale) || "—"}</div>
-              <div>🚚 {t("deliveries")}: {fmtDays(s.deliveryDays, locale) || "—"}</div>
-              {s.minOrderNote && <div>💰 {s.minOrderNote}</div>}
+            <div className="text-sm text-gray-600 mt-3 space-y-1.5">
+              <div className="flex items-center gap-2"><Package className="h-3.5 w-3.5 text-gray-400 flex-none" />{s.orderingMethod} {s.orderCutoffTime && `· ${s.orderCutoffTime}`}</div>
+              <div className="flex items-center gap-2"><CalendarClock className="h-3.5 w-3.5 text-gray-400 flex-none" />{t("orders")}: {fmtDays(s.orderDeadlineDays, locale) || "—"}</div>
+              <div className="flex items-center gap-2"><TruckIcon className="h-3.5 w-3.5 text-gray-400 flex-none" />{t("deliveries")}: {fmtDays(s.deliveryDays, locale) || "—"}</div>
+              {s.minOrderNote && <div className="flex items-center gap-2"><Wallet className="h-3.5 w-3.5 text-gray-400 flex-none" />{s.minOrderNote}</div>}
             </div>
           </Card>
         ))}
       </div>
 
       {editing && (
-        <div className="fixed inset-0 bg-black/40 flex items-end md:items-center justify-center z-30" onClick={() => setEditing(null)}>
-          <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-lg p-5 space-y-3 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-xl font-bold">{editing.id ? t("edit") : t("add")} {t("supplier")}</h2>
+        <div className="modal-overlay" onClick={() => setEditing(null)}>
+          <div className="modal-panel max-w-lg" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-xl font-bold text-gray-900">{editing.id ? t("edit") : t("add")} {t("supplier")}</h2>
             <div className="grid grid-cols-2 gap-3">
               <Field label="שם עברית"><Input value={editing.nameHe} onChange={(e) => setEditing({ ...editing, nameHe: e.target.value })} /></Field>
               <Field label="Name (EN)"><Input value={editing.nameEn} onChange={(e) => setEditing({ ...editing, nameEn: e.target.value })} /></Field>
@@ -145,16 +147,16 @@ export default function SuppliersPage() {
               <Field label="Min order note"><Input value={editing.minOrderNote || ""} onChange={(e) => setEditing({ ...editing, minOrderNote: e.target.value })} /></Field>
             </div>
             <div>
-              <span className="text-sm text-gray-600">Order deadline days</span>
-              <div className="flex gap-1 mt-1">{WD.map((d) => (
+              <span className="text-sm font-medium text-gray-600">Order deadline days</span>
+              <div className="flex gap-1.5 mt-1.5">{WD.map((d) => (
                 <button key={d} onClick={() => toggleDay("orderDeadlineDays", d)}
-                  className={`badge px-3 py-1.5 ${(editing.orderDeadlineDays||[]).includes(d) ? "bg-brand-600 text-white" : "bg-gray-100"}`}>{wdLabel(d)}</button>))}</div>
+                  className={`rounded-full px-3.5 py-1.5 text-sm font-semibold transition-colors duration-150 ${(editing.orderDeadlineDays||[]).includes(d) ? "bg-brand-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>{wdLabel(d)}</button>))}</div>
             </div>
             <div>
-              <span className="text-sm text-gray-600">Delivery days</span>
-              <div className="flex gap-1 mt-1">{WD.map((d) => (
+              <span className="text-sm font-medium text-gray-600">Delivery days</span>
+              <div className="flex gap-1.5 mt-1.5">{WD.map((d) => (
                 <button key={d} onClick={() => toggleDay("deliveryDays", d)}
-                  className={`badge px-3 py-1.5 ${(editing.deliveryDays||[]).includes(d) ? "bg-emerald-600 text-white" : "bg-gray-100"}`}>{wdLabel(d)}</button>))}</div>
+                  className={`rounded-full px-3.5 py-1.5 text-sm font-semibold transition-colors duration-150 ${(editing.deliveryDays||[]).includes(d) ? "bg-emerald-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>{wdLabel(d)}</button>))}</div>
             </div>
             <Field label={t("notes")}><Input value={editing.notes || ""} onChange={(e) => setEditing({ ...editing, notes: e.target.value })} /></Field>
             <div className="flex gap-2 pt-2">

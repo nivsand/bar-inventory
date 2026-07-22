@@ -2,7 +2,8 @@
 import { useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import { api } from "@/lib/fetcher";
-import { Card, Field, Input, Spinner } from "@/components/ui";
+import { Card, Field, Input, PageSpinner, EmptyState, Badge } from "@/components/ui";
+import { Plus, Pencil, Trash2 } from "lucide-react";
 
 type Line = { itemId: string; qtyPerYield: string; unit: string };
 
@@ -57,43 +58,43 @@ export default function RecipesPage() {
     load();
   }
 
-  if (loading) return <div className="flex justify-center py-20"><Spinner /></div>;
+  if (loading) return <PageSpinner />;
   const creating = editing === "new";
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">{t("recipes")}</h1>
-        <button className="btn-primary" onClick={openNew}>+ {t("createRecipe")}</button>
+        <h1 className="text-2xl font-bold text-gray-900">{t("recipes")}</h1>
+        <button className="btn-primary" onClick={openNew}><Plus className="h-4 w-4" />{t("createRecipe")}</button>
       </div>
 
       <div className="grid md:grid-cols-2 gap-3">
         {preps.map((p) => (
-          <Card key={p.id}>
+          <Card key={p.id} className="hover:shadow-card-hover transition-shadow duration-200">
             <div className="flex justify-between items-start">
               <div>
-                <h3 className="font-semibold">{name(p.item)} <span className="badge bg-gray-100 ms-1">{t("prep")}</span></h3>
+                <h3 className="font-semibold text-gray-900">{name(p.item)} <Badge tone="neutral" className="ms-1">{t("prep")}</Badge></h3>
                 <p className="text-sm text-gray-500">{t("yield")}: {p.yieldQty} {p.item.unit} · {(p.recipe?.ingredients?.length ?? 0)} {t("ingredient")}</p>
               </div>
               <div className="flex gap-3">
-                <button className="text-brand-600 text-sm" onClick={() => openEdit(p)}>{t("edit")}</button>
-                <button className="text-red-600 text-sm" onClick={() => remove(p)}>{t("delete")}</button>
+                <button className="text-brand-700 text-sm font-medium inline-flex items-center gap-1" onClick={() => openEdit(p)}><Pencil className="h-3.5 w-3.5" />{t("edit")}</button>
+                <button className="text-red-600 text-sm font-medium inline-flex items-center gap-1" onClick={() => remove(p)}><Trash2 className="h-3.5 w-3.5" />{t("delete")}</button>
               </div>
             </div>
-            <ul className="mt-2 text-sm text-gray-600">
+            <ul className="mt-2 text-sm text-gray-600 divide-y divide-gray-100">
               {(p.recipe?.ingredients ?? []).map((ri: any) => (
-                <li key={ri.id} className="flex justify-between"><span>{name(ri.item)}</span><span>{ri.qtyPerYield} {ri.unit}</span></li>
+                <li key={ri.id} className="flex justify-between py-1"><span>{name(ri.item)}</span><span className="tabular-nums">{ri.qtyPerYield} {ri.unit}</span></li>
               ))}
             </ul>
           </Card>
         ))}
-        {preps.length === 0 && <Card><p className="text-gray-400">{t("noData")}</p></Card>}
+        {preps.length === 0 && <Card><EmptyState label={t("noData")} /></Card>}
       </div>
 
       {editing && (
-        <div className="fixed inset-0 bg-black/40 flex items-end md:items-center justify-center z-30" onClick={() => setEditing(null)}>
-          <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-lg p-5 space-y-3 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-xl font-bold">{creating ? t("createRecipe") : `${t("recipe")}: ${name(editing.item)}`}</h2>
+        <div className="modal-overlay" onClick={() => setEditing(null)}>
+          <div className="modal-panel max-w-lg" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-xl font-bold text-gray-900">{creating ? t("createRecipe") : `${t("recipe")}: ${name(editing.item)}`}</h2>
 
             <div className="grid grid-cols-2 gap-3">
               <Field label="שם עברית"><Input value={form.nameHe} disabled={!creating} onChange={(e) => setForm({ ...form, nameHe: e.target.value })} /></Field>
@@ -121,10 +122,10 @@ export default function RecipesPage() {
                   </select>
                   <input className="touch-input h-11 w-20 text-center" type="number" placeholder={t("quantity")} value={l.qtyPerYield} onChange={(e) => setLine(i, { qtyPerYield: e.target.value })} />
                   <input className="touch-input h-11 w-16 text-center" placeholder={t("unit")} value={l.unit} onChange={(e) => setLine(i, { unit: e.target.value })} />
-                  <button className="text-red-600 px-2" onClick={() => removeLine(i)} aria-label={t("remove")}>✕</button>
+                  <button className="text-red-600 px-2" onClick={() => removeLine(i)} aria-label={t("remove")}><Trash2 className="h-4 w-4" /></button>
                 </div>
               ))}
-              <button className="btn-ghost text-sm" onClick={addLine}>+ {t("addIngredient")}</button>
+              <button className="btn-ghost text-sm" onClick={addLine}><Plus className="h-4 w-4" />{t("addIngredient")}</button>
             </div>
 
             <div className="flex gap-2 pt-2">

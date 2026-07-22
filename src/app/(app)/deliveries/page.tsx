@@ -3,15 +3,16 @@ import { useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import { useSession } from "next-auth/react";
 import { api } from "@/lib/fetcher";
-import { Card, Input, Spinner } from "@/components/ui";
+import { Card, Input, PageSpinner, Spinner, Badge, EmptyState } from "@/components/ui";
+import { Upload, Plus, X } from "lucide-react";
 
 type Row = { itemId: string; rawName: string; receivedQty: string; unit: string; note: string; isShort: boolean };
 
-const STATUS_TONE: Record<string, string> = {
-  DRAFT: "bg-gray-100 text-gray-600",
-  SUBMITTED: "bg-amber-100 text-amber-800",
-  APPROVED: "bg-emerald-100 text-emerald-700",
-  REJECTED: "bg-red-100 text-red-700",
+const STATUS_TONE: Record<string, "neutral" | "warn" | "ok" | "danger"> = {
+  DRAFT: "neutral",
+  SUBMITTED: "warn",
+  APPROVED: "ok",
+  REJECTED: "danger",
 };
 
 export default function DeliveriesPage() {
@@ -99,13 +100,13 @@ export default function DeliveriesPage() {
     load();
   }
 
-  if (!items.length && !deliveries.length) return <div className="flex justify-center py-20"><Spinner /></div>;
+  if (!items.length && !deliveries.length) return <PageSpinner />;
 
   const pending = deliveries.filter((d) => d.status === "SUBMITTED");
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">{t("deliveries")}</h1>
+      <h1 className="text-2xl font-bold text-gray-900">{t("deliveries")}</h1>
 
       {/* Report received goods (employee + manager) */}
       <Card className="space-y-3">
@@ -113,21 +114,21 @@ export default function DeliveriesPage() {
         <p className="text-sm text-gray-500">{t("review")} — inventory is updated only after manager approval.</p>
         <div className="flex flex-wrap gap-2 items-center">
           <label className="btn-ghost cursor-pointer">
-            {t("uploadReceipt")} (OCR)
+            <Upload className="h-4 w-4" />{t("uploadReceipt")} (OCR)
             <input type="file" accept="image/*,application/pdf" capture="environment" onChange={upload} className="hidden" />
           </label>
-          <button className="btn-ghost" onClick={addRow}>+ {t("addProduct")}</button>
+          <button className="btn-ghost" onClick={addRow}><Plus className="h-4 w-4" />{t("addProduct")}</button>
           {uploading && <Spinner />}
           {provider && <span className="text-xs text-gray-400">OCR: {provider}</span>}
           {confidence !== null && (
-            <span className={`badge ${confidence >= 0.7 ? "bg-emerald-100 text-emerald-700" : confidence > 0 ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-500"}`}>
+            <Badge tone={confidence >= 0.7 ? "ok" : confidence > 0 ? "warn" : "neutral"}>
               {t("confidence")}: {Math.round(confidence * 100)}%
-            </span>
+            </Badge>
           )}
         </div>
         {receipt && (
           <button onClick={() => setViewImg(receipt)} className="block">
-            <img src={receipt} alt={t("receiptImage")} className="h-28 rounded-lg border object-cover" />
+            <img src={receipt} alt={t("receiptImage")} className="h-28 rounded-xl border border-gray-200 object-cover" />
           </button>
         )}
 
@@ -164,7 +165,7 @@ export default function DeliveriesPage() {
                   <td className="p-2"><input className="touch-input h-11 w-16 text-center" value={r.unit} onChange={(e) => update(idx, { unit: e.target.value })} /></td>
                   <td className="p-2"><input className="touch-input h-11" value={r.note} onChange={(e) => update(idx, { note: e.target.value })} /></td>
                   <td className="p-2 text-center"><input type="checkbox" checked={r.isShort} onChange={(e) => update(idx, { isShort: e.target.checked })} /></td>
-                  <td className="p-2 text-center"><button className="text-red-600" onClick={() => removeRow(idx)} aria-label={t("remove")}>✕</button></td>
+                  <td className="p-2 text-center"><button className="text-red-600 inline-flex" onClick={() => removeRow(idx)} aria-label={t("remove")}><X className="h-4 w-4" /></button></td>
                 </tr>
               ))}</tbody>
             </table>
@@ -185,13 +186,13 @@ export default function DeliveriesPage() {
           <h2 className="font-semibold mb-2">{t("pendingReports")} · {t("approveReceived")}</h2>
           <div className="space-y-3">
             {pending.map((d) => (
-              <div key={d.id} className="border rounded-xl p-3">
+              <div key={d.id} className="border border-gray-100 rounded-xl p-3.5">
                 <div className="flex justify-between items-center">
                   <div>
-                    <span className="font-medium">{d.receivedBy?.name}</span>
-                    <span className="badge ms-2 bg-gray-100">{d.items.length} {t("item")}</span>
-                    {d.hasShortage && <span className="badge ms-2 bg-red-100 text-red-700">{t("shortage")}</span>}
-                    <p className="text-xs text-gray-400">{new Date(d.receivedAt).toLocaleString()}</p>
+                    <span className="font-medium text-gray-900">{d.receivedBy?.name}</span>
+                    <Badge tone="neutral" className="ms-2">{d.items.length} {t("item")}</Badge>
+                    {d.hasShortage && <Badge tone="danger" className="ms-2">{t("shortage")}</Badge>}
+                    <p className="text-xs text-gray-400 mt-1">{new Date(d.receivedAt).toLocaleString()}</p>
                   </div>
                   <div className="flex gap-2">
                     <button className="btn-primary text-sm" onClick={() => review(d.id, "APPROVE")}>{t("approve")}</button>
@@ -215,45 +216,48 @@ export default function DeliveriesPage() {
       <section className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-semibold text-lg">{t("history")}</h2>
-          <div className="flex flex-wrap gap-1">
+          <div className="flex flex-wrap gap-1.5">
             {["ALL", "SUBMITTED", "APPROVED", "REJECTED"].map((s) => (
               <button key={s} onClick={() => setStatusFilter(s)}
-                className={`rounded-lg px-2.5 py-1 text-xs font-medium ${statusFilter === s ? "bg-brand-600 text-white" : "bg-gray-100 text-gray-600"}`}>
+                className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors duration-150 ${statusFilter === s ? "bg-brand-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
                 {s === "ALL" ? t("all") : s === "SUBMITTED" ? t("statusSubmitted") : s === "APPROVED" ? t("statusApproved") : t("statusRejected")}
               </button>
             ))}
           </div>
         </div>
+        {deliveries.filter((d) => statusFilter === "ALL" || d.status === statusFilter).length === 0 && (
+          <Card><EmptyState label={t("noData")} /></Card>
+        )}
         {deliveries.filter((d) => statusFilter === "ALL" || d.status === statusFilter).map((d) => (
           <Card key={d.id} className="flex justify-between items-start gap-3">
             <div className="flex gap-3">
               {d.documentUrl && (
                 <button onClick={() => setViewImg(d.documentUrl)} className="shrink-0">
-                  <img src={d.documentUrl} alt={t("receiptImage")} className="h-14 w-14 rounded-lg border object-cover" />
+                  <img src={d.documentUrl} alt={t("receiptImage")} className="h-14 w-14 rounded-xl border border-gray-200 object-cover" />
                 </button>
               )}
               <div>
-                <span className="font-medium">{d.order?.supplier ? name(d.order.supplier) : d.supplier ? name(d.supplier) : "—"}</span>
-                <span className="badge ms-2 bg-gray-100">{d.items.length} {t("item")}</span>
-                {d.order && <span className="badge ms-2 bg-blue-100 text-blue-700">{t("orders")}</span>}
-                {d.hasShortage && <span className="badge ms-2 bg-red-100 text-red-700">{t("shortage")}</span>}
-                <p className="text-sm text-gray-400">{new Date(d.receivedAt).toLocaleString()} · {d.receivedBy?.name}</p>
+                <span className="font-medium text-gray-900">{d.order?.supplier ? name(d.order.supplier) : d.supplier ? name(d.supplier) : "—"}</span>
+                <Badge tone="neutral" className="ms-2">{d.items.length} {t("item")}</Badge>
+                {d.order && <Badge tone="info" className="ms-2">{t("orders")}</Badge>}
+                {d.hasShortage && <Badge tone="danger" className="ms-2">{t("shortage")}</Badge>}
+                <p className="text-sm text-gray-400 mt-1">{new Date(d.receivedAt).toLocaleString()} · {d.receivedBy?.name}</p>
                 <div className="flex gap-3 mt-1">
-                  {d.documentUrl && <button className="text-brand-600 text-sm" onClick={() => setViewImg(d.documentUrl)}>{t("viewImage")}</button>}
-                  {isAdmin && <button className="text-red-600 text-sm" onClick={() => deleteDelivery(d.id)}>{t("delete")}</button>}
+                  {d.documentUrl && <button className="text-brand-700 text-sm font-medium" onClick={() => setViewImg(d.documentUrl)}>{t("viewImage")}</button>}
+                  {isAdmin && <button className="text-red-600 text-sm font-medium" onClick={() => deleteDelivery(d.id)}>{t("delete")}</button>}
                 </div>
               </div>
             </div>
-            <span className={`badge ${STATUS_TONE[d.status] || "bg-gray-100"}`}>
+            <Badge tone={STATUS_TONE[d.status] ?? "neutral"}>
               {d.status === "SUBMITTED" ? t("statusSubmitted") : d.status === "APPROVED" ? t("statusApproved") : d.status === "REJECTED" ? t("statusRejected") : t("draft")}
-            </span>
+            </Badge>
           </Card>
         ))}
       </section>
 
       {viewImg && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-40 p-4" onClick={() => setViewImg(null)}>
-          <img src={viewImg} alt={t("receiptImage")} className="max-h-[90vh] max-w-full rounded-lg" onClick={(e) => e.stopPropagation()} />
+        <div className="modal-overlay bg-gray-950/75" onClick={() => setViewImg(null)}>
+          <img src={viewImg} alt={t("receiptImage")} className="max-h-[90vh] max-w-full rounded-2xl" onClick={(e) => e.stopPropagation()} />
         </div>
       )}
     </div>

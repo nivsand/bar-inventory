@@ -1,6 +1,6 @@
 "use client";
 import { useI18n } from "@/lib/i18n/I18nProvider";
-import { Spinner } from "@/components/ui";
+import { Spinner, Badge } from "@/components/ui";
 
 // Shared detail/review modal for a daily count. `detail` is the count object
 // (from GET /api/counts/[id]), the string "loading", or null (hidden).
@@ -16,34 +16,34 @@ export function CountDetailModal({
   if (!detail) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-end md:items-center justify-center z-30" onClick={onClose}>
-      <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-lg p-5 space-y-3 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-panel max-w-lg" onClick={(e) => e.stopPropagation()}>
         {detail === "loading" ? (
           <div className="flex justify-center py-8"><Spinner /></div>
         ) : (
           <>
-            <h2 className="text-xl font-bold">{t("dailyCount")} · {t("review")}</h2>
-            <div className="text-sm text-gray-600 space-y-0.5">
-              <div>{t("location")}: <b>{detail.location ? name(detail.location) : t("fullCount")}</b></div>
-              <div>{t("employee")}: <b>{detail.countedBy?.name}</b></div>
+            <h2 className="text-xl font-bold text-gray-900">{t("dailyCount")} · {t("review")}</h2>
+            <div className="text-sm text-gray-600 space-y-1">
+              <div>{t("location")}: <b className="text-gray-900">{detail.location ? name(detail.location) : t("fullCount")}</b></div>
+              <div>{t("employee")}: <b className="text-gray-900">{detail.countedBy?.name}</b></div>
               <div>{t("date")}: {new Date(detail.submittedAt || detail.businessDay).toLocaleString()}</div>
-              <div>{t("status")}: <span className="badge bg-gray-100">{detail.status}</span></div>
+              <div>{t("status")}: <Badge tone="neutral">{detail.status}</Badge></div>
               {detail.approvedBy?.name && <div>{t("approve")}: {detail.approvedBy.name}{detail.approvedAt ? ` · ${new Date(detail.approvedAt).toLocaleString()}` : ""}</div>}
               {detail.notes && <div>{t("notes")}: {detail.notes}</div>}
             </div>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto rounded-xl border border-gray-100">
               <table className="w-full text-sm">
                 <thead className="text-gray-500"><tr>
-                  <th className="text-start p-2">{t("item")}</th><th className="p-2">{t("area")}</th>
-                  <th className="p-2">{t("quantity")}</th><th className="p-2">{t("unit")}</th><th className="text-start p-2">{t("notes")}</th>
+                  <th className="text-start p-2.5">{t("item")}</th><th className="p-2.5">{t("area")}</th>
+                  <th className="p-2.5">{t("quantity")}</th><th className="p-2.5">{t("unit")}</th><th className="text-start p-2.5">{t("notes")}</th>
                 </tr></thead>
                 <tbody>{detail.entries.map((e: any) => (
-                  <tr key={e.id} className="border-t">
-                    <td className="p-2">{name(e.item)}</td>
-                    <td className="p-2 text-center text-xs">{t(e.item.area === "FLOOR" ? "floor" : "kitchen")}</td>
-                    <td className="p-2 text-center font-medium">{e.countedQty}</td>
-                    <td className="p-2 text-center text-gray-500">{e.item.unit}</td>
-                    <td className="p-2 text-gray-500">{e.note || ""}</td>
+                  <tr key={e.id} className="border-t border-gray-100">
+                    <td className="p-2.5">{name(e.item)}</td>
+                    <td className="p-2.5 text-center text-xs">{t(e.item.area === "FLOOR" ? "floor" : "kitchen")}</td>
+                    <td className="p-2.5 text-center font-semibold tabular-nums">{e.countedQty}</td>
+                    <td className="p-2.5 text-center text-gray-500">{e.item.unit}</td>
+                    <td className="p-2.5 text-gray-500">{e.note || ""}</td>
                   </tr>
                 ))}</tbody>
               </table>

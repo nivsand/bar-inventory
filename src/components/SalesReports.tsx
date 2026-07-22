@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import { TKey } from "@/lib/i18n/translations";
 import { api } from "@/lib/fetcher";
-import { Card, Input, Spinner } from "@/components/ui";
+import { Card, Input, Spinner, EmptyState, Badge } from "@/components/ui";
 
 const SUBTABS = ["upload", "byWeek", "byProduct", "unmapped", "mappings"] as const;
 type SubTab = (typeof SUBTABS)[number];
@@ -13,9 +13,9 @@ const SUBTAB_LABEL: Record<SubTab, TKey> = {
   unmapped: "unmapped", mappings: "productMappings",
 };
 
-const STATUS_TONE: Record<string, string> = {
-  PENDING_MAPPING: "bg-amber-100 text-amber-800",
-  PROCESSED: "bg-emerald-100 text-emerald-700",
+const STATUS_TONE: Record<string, "warn" | "ok"> = {
+  PENDING_MAPPING: "warn",
+  PROCESSED: "ok",
 };
 
 function todayStr() {
@@ -31,7 +31,7 @@ export function SalesReports() {
       <div className="flex flex-wrap gap-2">
         {SUBTABS.map((s) => (
           <button key={s} onClick={() => setSub(s)}
-            className={`rounded-lg px-3 py-1.5 text-sm font-medium ${sub === s ? "bg-brand-600 text-white" : "bg-gray-100 text-gray-600"}`}>
+            className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors duration-150 ${sub === s ? "bg-brand-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
             {t(SUBTAB_LABEL[s])}
           </button>
         ))}
@@ -104,22 +104,22 @@ function UploadTab() {
         {uploads === null ? (
           <div className="flex justify-center py-12"><Spinner /></div>
         ) : uploads.length === 0 ? (
-          <p className="p-4 text-gray-400">{t("noData")}</p>
+          <EmptyState label={t("noData")} />
         ) : (
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-gray-500"><tr>
+            <thead className="text-gray-500"><tr>
               <th className="text-start p-3">{t("year")}</th><th className="p-3">{t("week")}</th>
               <th className="p-3">{t("uploadedBy")}</th><th className="p-3">{t("uploadedAt")}</th>
               <th className="p-3">{t("item")}</th><th className="p-3">{t("status")}</th>
             </tr></thead>
             <tbody>{uploads.map((u) => (
-              <tr key={u.id} className="border-t">
+              <tr key={u.id} className="border-t border-gray-100 hover:bg-gray-50 transition-colors">
                 <td className="p-3">{u.year}</td>
                 <td className="p-3 text-center">{u.weekNumber}</td>
                 <td className="p-3">{u.uploadedBy?.name}</td>
                 <td className="p-3 whitespace-nowrap">{new Date(u.uploadedAt).toLocaleString()}</td>
                 <td className="p-3 text-center text-gray-500">{u._count?.lines}</td>
-                <td className="p-3 text-center"><span className={`badge ${STATUS_TONE[u.status] || "bg-gray-100"}`}>{u.status}</span></td>
+                <td className="p-3 text-center"><Badge tone={STATUS_TONE[u.status] ?? "neutral"}>{u.status}</Badge></td>
               </tr>
             ))}</tbody>
           </table>
@@ -139,15 +139,15 @@ function ByWeekTab() {
       {rows === null ? (
         <div className="flex justify-center py-12"><Spinner /></div>
       ) : rows.length === 0 ? (
-        <p className="p-4 text-gray-400">{t("noData")}</p>
+        <EmptyState label={t("noData")} />
       ) : (
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-gray-500"><tr>
+          <thead className="text-gray-500"><tr>
             <th className="text-start p-3">{t("year")}</th><th className="p-3">{t("week")}</th>
             <th className="text-start p-3">{t("item")}</th><th className="p-3">{t("totalQty")}</th><th className="p-3">{t("revenue")}</th>
           </tr></thead>
           <tbody>{rows.map((r, i) => (
-            <tr key={i} className="border-t">
+            <tr key={i} className="border-t border-gray-100 hover:bg-gray-50 transition-colors">
               <td className="p-3">{r.year}</td>
               <td className="p-3 text-center">{r.week}</td>
               <td className="p-3">{r.item}</td>
@@ -171,15 +171,15 @@ function ByProductTab() {
       {rows === null ? (
         <div className="flex justify-center py-12"><Spinner /></div>
       ) : rows.length === 0 ? (
-        <p className="p-4 text-gray-400">{t("noData")}</p>
+        <EmptyState label={t("noData")} />
       ) : (
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-gray-500"><tr>
+          <thead className="text-gray-500"><tr>
             <th className="text-start p-3">{t("item")}</th><th className="p-3">{t("totalQty")}</th>
             <th className="p-3">{t("totalRevenue")}</th><th className="p-3">{t("week")}s</th>
           </tr></thead>
           <tbody>{rows.map((r, i) => (
-            <tr key={i} className="border-t">
+            <tr key={i} className="border-t border-gray-100 hover:bg-gray-50 transition-colors">
               <td className="p-3">{r.item}</td>
               <td className="p-3 text-center">{r.totalQty}</td>
               <td className="p-3 text-center">{r.totalRevenue}</td>
@@ -224,10 +224,10 @@ function UnmappedTab() {
       {lines === null ? (
         <div className="flex justify-center py-12"><Spinner /></div>
       ) : lines.length === 0 ? (
-        <p className="p-4 text-gray-400">{t("noData")}</p>
+        <EmptyState label={t("noData")} />
       ) : (
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-gray-500"><tr>
+          <thead className="text-gray-500"><tr>
             <th className="text-start p-3">{t("posProductName")}</th><th className="p-3">{t("quantity")}</th>
             <th className="p-3">{t("year")}/{t("week")}</th><th className="text-start p-3">{t("mapTo")}</th><th className="p-3"></th>
           </tr></thead>
@@ -236,7 +236,7 @@ function UnmappedTab() {
             const suggested = items.filter((i) => suggestionIds.has(i.id));
             const rest = sortedItems.filter((i) => !suggestionIds.has(i.id));
             return (
-              <tr key={l.id} className="border-t">
+              <tr key={l.id} className="border-t border-gray-100 hover:bg-gray-50 transition-colors">
                 <td className="p-3">{l.posProductName}</td>
                 <td className="p-3 text-center">{l.quantitySold}</td>
                 <td className="p-3 text-center text-gray-500">{l.upload?.year}/{l.upload?.weekNumber}</td>
@@ -277,14 +277,14 @@ function MappingsTab() {
       {mappings === null ? (
         <div className="flex justify-center py-12"><Spinner /></div>
       ) : mappings.length === 0 ? (
-        <p className="p-4 text-gray-400">{t("noData")}</p>
+        <EmptyState label={t("noData")} />
       ) : (
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-gray-500"><tr>
+          <thead className="text-gray-500"><tr>
             <th className="text-start p-3">{t("posProductName")}</th><th className="text-start p-3">{t("item")}</th><th className="p-3"></th>
           </tr></thead>
           <tbody>{mappings.map((m) => (
-            <tr key={m.id} className="border-t">
+            <tr key={m.id} className="border-t border-gray-100 hover:bg-gray-50 transition-colors">
               <td className="p-3">{m.posProductName}</td>
               <td className="p-3">{name(m.item)}</td>
               <td className="p-3 text-end"><button className="text-red-600" onClick={() => remove(m.id)}>{t("delete")}</button></td>

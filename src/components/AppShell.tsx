@@ -5,6 +5,8 @@ import { useSession, signOut } from "next-auth/react";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import { TKey } from "@/lib/i18n/translations";
 import clsx from "clsx";
+import { BrandIcon, LanguagesIcon, LogOutIcon, NAV_ICONS } from "@/components/icons";
+import { IconButton } from "@/components/ui";
 
 const NAV: { href: string; key: TKey; managerOnly?: boolean; adminOnly?: boolean }[] = [
   { href: "/dashboard", key: "dashboard" },
@@ -41,37 +43,84 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     window.location.assign("/login");
   }
 
+  const Brand = (
+    <Link href="/users" className="flex items-center gap-2.5">
+      <span className="flex h-9 w-9 flex-none items-center justify-center rounded-[11px] bg-brand-600 text-white">
+        <BrandIcon className="h-[18px] w-[18px]" />
+      </span>
+      <span className="flex flex-col leading-tight">
+        <span className="font-bold text-gray-900">{t("appName")}</span>
+        {session?.user?.name && <span className="text-xs text-gray-500">{t("hi")}, {session.user.name}</span>}
+      </span>
+    </Link>
+  );
+
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="sticky top-0 z-20 bg-brand-700 text-white" style={{ paddingTop: "env(safe-area-inset-top)" }}>
-        <div className="flex items-center justify-between px-4 h-14">
-          <Link href="/users" className="flex flex-col leading-tight">
-            <span className="font-bold text-lg">{t("appName")}</span>
-            {session?.user?.name && (
-              <span className="text-xs text-brand-100">{t("hi")}, {session.user.name}</span>
-            )}
-          </Link>
-          <div className="flex items-center gap-3">
-            <button onClick={() => setLocale(locale === "he" ? "en" : "he")} className="text-sm bg-brand-600 rounded-lg px-3 py-1.5">
-              {locale === "he" ? "EN" : "עב"}
-            </button>
-            <button onClick={logout} className="text-sm bg-brand-800 rounded-lg px-3 py-1.5">
-              {t("signOut")}
-            </button>
+    <div className="min-h-screen flex flex-col md:flex-row bg-gray-50">
+      {/* ---------- Sidebar (tablet / desktop) ---------- */}
+      <aside className="hidden md:flex md:sticky md:top-0 md:h-screen md:w-64 md:flex-none md:flex-col border-e border-gray-200 bg-white px-4 py-6">
+        <div className="px-2 mb-6">{Brand}</div>
+        <nav className="flex-1 flex flex-col gap-1 overflow-y-auto">
+          {items.map((n) => {
+            const active = pathname.startsWith(n.href);
+            const Icon = NAV_ICONS[n.key];
+            return (
+              <Link key={n.href} href={n.href}
+                className={clsx(
+                  "flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition-colors duration-150",
+                  active ? "bg-brand-100 text-brand-800" : "text-gray-500 hover:bg-gray-50 hover:text-gray-800"
+                )}>
+                {Icon && <Icon className="h-[18px] w-[18px] flex-none" />}
+                {t(n.key)}
+              </Link>
+            );
+          })}
+        </nav>
+        <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between px-1">
+          <span className="text-xs font-semibold text-gray-400">{role}</span>
+          <div className="flex items-center gap-1">
+            <IconButton onClick={() => setLocale(locale === "he" ? "en" : "he")} aria-label={t("language")} title={t("language")}>
+              <LanguagesIcon className="h-[18px] w-[18px]" />
+            </IconButton>
+            <IconButton onClick={logout} aria-label={t("signOut")} title={t("signOut")}>
+              <LogOutIcon className="h-[18px] w-[18px]" />
+            </IconButton>
           </div>
         </div>
-        {/* horizontal scroll nav (mobile-first) */}
-        <nav className="flex gap-1 overflow-x-auto px-2 pb-2 no-scrollbar">
-          {items.map((n) => (
-            <Link key={n.href} href={n.href}
-              className={clsx("whitespace-nowrap rounded-lg px-3 py-1.5 text-sm",
-                pathname.startsWith(n.href) ? "bg-white text-brand-700 font-semibold" : "bg-brand-600/60 text-white")}>
-              {t(n.key)}
-            </Link>
-          ))}
+      </aside>
+
+      {/* ---------- Header + horizontal nav (phone) ---------- */}
+      <header className="md:hidden sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-gray-200" style={{ paddingTop: "env(safe-area-inset-top)" }}>
+        <div className="flex items-center justify-between px-4 h-16">
+          {Brand}
+          <div className="flex items-center gap-1">
+            <IconButton onClick={() => setLocale(locale === "he" ? "en" : "he")} aria-label={t("language")}>
+              <LanguagesIcon className="h-[18px] w-[18px]" />
+            </IconButton>
+            <IconButton onClick={logout} aria-label={t("signOut")}>
+              <LogOutIcon className="h-[18px] w-[18px]" />
+            </IconButton>
+          </div>
+        </div>
+        <nav className="flex gap-2 overflow-x-auto px-4 pb-3 no-scrollbar">
+          {items.map((n) => {
+            const active = pathname.startsWith(n.href);
+            return (
+              <Link key={n.href} href={n.href}
+                className={clsx(
+                  "whitespace-nowrap rounded-full px-3.5 py-1.5 text-sm font-semibold transition-colors duration-150",
+                  active ? "bg-brand-600 text-white" : "bg-gray-100 text-gray-600"
+                )}>
+                {t(n.key)}
+              </Link>
+            );
+          })}
         </nav>
       </header>
-      <main className="flex-1 p-4 max-w-5xl w-full mx-auto pb-24">{children}</main>
+
+      <main className="flex-1 min-w-0">
+        <div className="max-w-6xl w-full mx-auto p-4 md:p-8 pb-24 md:pb-10">{children}</div>
+      </main>
     </div>
   );
 }
