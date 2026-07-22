@@ -166,9 +166,11 @@ export default function InventoryPage() {
     finally { setQuickSaving(false); }
   }
 
+  const q = search.trim().toLowerCase();
   const filtered = items.filter((i) =>
     (i.area || "KITCHEN") === areaTab &&
-    (name(i).toLowerCase().includes(search.toLowerCase()) || i.nameHe.includes(search) || i.nameEn.toLowerCase().includes(search.toLowerCase())));
+    (!q || [i.nameHe, i.nameEn, i.supplier?.nameHe, i.supplier?.nameEn]
+      .some((v) => (v || "").toLowerCase().includes(q))));
 
   if (loading) return <PageSpinner />;
 
