@@ -1,8 +1,9 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import { useSession } from "next-auth/react";
 import { api } from "@/lib/fetcher";
+import { invalidateApiCache, useApiResource } from "@/lib/client-cache";
 import { Card, PageSpinner, Badge, EmptyState } from "@/components/ui";
 import { Plus } from "lucide-react";
 import { computeCycleStart } from "@/server/engines/ordering";
@@ -73,30 +74,32 @@ export default function OrdersPage() {
   const { data: session } = useSession();
   const isManager = ["MANAGER", "ADMIN"].includes((session?.user as any)?.role);
 
-  const [sugg, setSugg] = useState<any>(null);
-  const [orders, setOrders] = useState<any[]>([]);
-  const [inventory, setInventory] = useState<any[]>([]);
   const [qty, setQty] = useState<Record<string, number>>({});
-  const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState<{ supplier: any; text: string } | null>(null);
   const [addTo, setAddTo] = useState<string | null>(null);
   const [addForm, setAddForm] = useState<{ itemId: string; qty: string }>({ itemId: "", qty: "" });
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
 
-  const didInitialLoad = useRef(false);
+  const suggestionsResource = useApiResource<any>("/api/orders/suggestions");
+  const ordersResource = useApiResource<any[]>("/api/orders");
+  const inventoryResource = useApiResource<any[]>("/api/inventory?mode=order-picker", { ttlMs: 10 * 60 * 1000 });
 
-  const load = () => Promise.all([api("/api/orders/suggestions"), api("/api/orders"), api("/api/inventory?mode=order-picker")])
-    .then(([s, o, inv]) => {
-      setSugg(s); setOrders(o); setInventory(inv);
-      const q: Record<string, number> = {};
-      s.bySupplier.forEach((g: any) => g.items.forEach((it: any) => { q[it.itemId] = it.suggestedQty; }));
-      setQty(q); setLoading(false);
-    });
+  const sugg = suggestionsResource.data;
+  const orders = ordersResource.data ?? [];
+  const inventory = inventoryResource.data ?? [];
+  const loading = (suggestionsResource.loading && !sugg) || (ordersResource.loading && !ordersResource.data) || (inventoryResource.loading && !inventoryResource.data);
+
   useEffect(() => {
-    if (didInitialLoad.current) return;
-    didInitialLoad.current = true;
-    load();
-  }, []);
+    if (!sugg) return;
+    const q: Record<string, number> = {};
+    sugg.bySupplier.forEach((g: any) => g.items.forEach((it: any) => { q[it.itemId] = it.suggestedQty; }));
+    setQty(q);
+  }, [sugg]);
+
+  async function reloadOrderData() {
+    await Promise.all([suggestionsResource.reload(true), ordersResource.reload(true)]);
+    invalidateApiCache("/api/reports/orders");
+  }
 
   function toggleOrderExpand(id: string) {
     setExpandedOrders((prev) => {
@@ -116,7 +119,7 @@ export default function OrdersPage() {
     const order = await api("/api/orders", { method: "POST", body: JSON.stringify({ supplierId: group.supplier.id, items, channel: group.supplier.orderingMethod }) });
     const text = buildMessage(locale, group.supplier, mapItems(order.items));
     await api(`/api/orders/${order.id}`, { method: "PATCH", body: JSON.stringify({ messageBody: text }) });
-    load();
+    await reloadOrderData();
   }
 
   // Builds a supplier message from current suggestions — does NOT create an order.
@@ -139,7 +142,7 @@ export default function OrdersPage() {
 
   async function markSent(id: string) {
     await api(`/api/orders/${id}`, { method: "PATCH", body: JSON.stringify({ status: "ORDERED" }) });
-    load();
+    await reloadOrderData();
   }
 
   function openMessage(o: any) {
@@ -149,22 +152,22 @@ export default function OrdersPage() {
 
   async function setStatus(id: string, status: string) {
     await api(`/api/orders/${id}`, { method: "PATCH", body: JSON.stringify({ status }) });
-    load();
+    await reloadOrderData();
   }
 
   async function addItem(orderId: string) {
     if (!addForm.itemId || !addForm.qty) return;
     await api(`/api/orders/${orderId}`, { method: "PATCH", body: JSON.stringify({ addItems: [{ itemId: addForm.itemId, orderedQty: Number(addForm.qty) }] }) });
-    setAddTo(null); setAddForm({ itemId: "", qty: "" }); load();
+    setAddTo(null); setAddForm({ itemId: "", qty: "" }); await reloadOrderData();
   }
 
   async function notToday(supplierId: string) {
     await api("/api/orders/suggestions/not-today", { method: "POST", body: JSON.stringify({ supplierId }) });
-    load();
+    await suggestionsResource.reload(true);
   }
 
   function addSuggestedProduct(supplierId: string, item: any) {
-    setSugg((prev: any) => ({
+    suggestionsResource.setData((prev: any) => ({
       ...prev,
       bySupplier: prev.bySupplier.map((group: any) => {
         if (group.supplier.id !== supplierId || group.items.some((it: any) => it.itemId === item.itemId)) return group;
@@ -180,7 +183,7 @@ export default function OrdersPage() {
 
   async function deleteOrder(id: string, isSent: boolean) {
     if (!window.confirm(isSent ? t("confirmCancelOrder") : t("confirmDeleteOrder"))) return;
-    try { await api(`/api/orders/${id}`, { method: "DELETE" }); load(); }
+    try { await api(`/api/orders/${id}`, { method: "DELETE" }); await reloadOrderData(); }
     catch (e: any) { alert(e.message); }
   }
 

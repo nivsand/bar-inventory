@@ -1,8 +1,9 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import { TKey } from "@/lib/i18n/translations";
 import { api } from "@/lib/fetcher";
+import { invalidateApiCache, useApiResource } from "@/lib/client-cache";
 import { Card, Input, Spinner, EmptyState, Badge } from "@/components/ui";
 
 const SUBTABS = ["upload", "byWeek", "byProduct", "unmapped", "mappings"] as const;
@@ -53,10 +54,8 @@ function UploadTab() {
   const [pasteText, setPasteText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [uploads, setUploads] = useState<any[] | null>(null);
-
-  const load = () => api("/api/sales/uploads").then(setUploads).catch(() => setUploads([]));
-  useEffect(() => { load(); }, []);
+  const uploadsResource = useApiResource<any[]>("/api/sales/uploads", { ttlMs: 60 * 1000 });
+  const uploads = uploadsResource.loading && !uploadsResource.data ? null : uploadsResource.data ?? [];
 
   async function submit() {
     setError("");
@@ -69,7 +68,8 @@ function UploadTab() {
       form.append("periodStart", periodStart);
       await api("/api/sales/uploads", { method: "POST", body: form, headers: {} });
       setFile(null); setPasteText("");
-      load();
+      invalidateApiCache(["/api/sales/unmapped", "/api/sales/mappings", "/api/reports/sales"]);
+      await uploadsResource.reload(true);
     } catch (e: any) {
       setError(e?.message || "Upload failed");
     } finally {
@@ -131,8 +131,8 @@ function UploadTab() {
 
 function ByWeekTab() {
   const { t } = useI18n();
-  const [rows, setRows] = useState<any[] | null>(null);
-  useEffect(() => { api("/api/reports/sales-weekly?format=json").then((d) => setRows(d.rows)).catch(() => setRows([])); }, []);
+  const report = useApiResource<{ rows: any[] }>("/api/reports/sales-weekly?format=json", { ttlMs: 60 * 1000 });
+  const rows = report.loading && !report.data ? null : report.data?.rows ?? [];
 
   return (
     <Card className="p-0 overflow-x-auto">
@@ -163,8 +163,8 @@ function ByWeekTab() {
 
 function ByProductTab() {
   const { t } = useI18n();
-  const [rows, setRows] = useState<any[] | null>(null);
-  useEffect(() => { api("/api/reports/sales-by-product?format=json").then((d) => setRows(d.rows)).catch(() => setRows([])); }, []);
+  const report = useApiResource<{ rows: any[] }>("/api/reports/sales-by-product?format=json", { ttlMs: 60 * 1000 });
+  const rows = report.loading && !report.data ? null : report.data?.rows ?? [];
 
   return (
     <Card className="p-0 overflow-x-auto">
@@ -194,16 +194,12 @@ function ByProductTab() {
 
 function UnmappedTab() {
   const { t, name } = useI18n();
-  const [lines, setLines] = useState<any[] | null>(null);
-  const [items, setItems] = useState<any[]>([]);
   const [picked, setPicked] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<string | null>(null);
-
-  function load() {
-    setLines(null);
-    api("/api/sales/unmapped").then(setLines).catch(() => setLines([]));
-  }
-  useEffect(() => { load(); api("/api/inventory").then(setItems).catch(() => {}); }, []);
+  const linesResource = useApiResource<any[]>("/api/sales/unmapped");
+  const itemsResource = useApiResource<any[]>("/api/inventory?mode=order-picker", { ttlMs: 10 * 60 * 1000 });
+  const lines = linesResource.loading && !linesResource.data ? null : linesResource.data ?? [];
+  const items = itemsResource.data ?? [];
 
   const sortedItems = [...items].sort((a, b) => name(a).localeCompare(name(b)));
 
@@ -213,7 +209,8 @@ function UnmappedTab() {
     setSaving(lineId);
     try {
       await api(`/api/sales/lines/${lineId}/map`, { method: "POST", body: JSON.stringify({ itemId }) });
-      setLines((ls) => (ls || []).filter((l) => l.id !== lineId));
+      linesResource.setData((ls) => (ls || []).filter((l: any) => l.id !== lineId));
+      invalidateApiCache(["/api/sales/uploads", "/api/sales/mappings", "/api/reports/sales"]);
     } finally {
       setSaving(null);
     }
@@ -263,13 +260,12 @@ function UnmappedTab() {
 
 function MappingsTab() {
   const { t, name } = useI18n();
-  const [mappings, setMappings] = useState<any[] | null>(null);
-  const load = () => api("/api/sales/mappings").then(setMappings).catch(() => setMappings([]));
-  useEffect(() => { load(); }, []);
+  const mappingsResource = useApiResource<any[]>("/api/sales/mappings", { ttlMs: 60 * 1000 });
+  const mappings = mappingsResource.loading && !mappingsResource.data ? null : mappingsResource.data ?? [];
 
   async function remove(id: string) {
     await api(`/api/sales/mappings/${id}`, { method: "DELETE" });
-    load();
+    await mappingsResource.reload(true);
   }
 
   return (

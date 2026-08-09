@@ -1,8 +1,9 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import { useSession } from "next-auth/react";
 import { api } from "@/lib/fetcher";
+import { invalidateApiCache, useApiResource } from "@/lib/client-cache";
 import { Card, Input, Field, SearchInput, Badge, EmptyState, PageSpinner } from "@/components/ui";
 import { Plus, Pencil } from "lucide-react";
 
@@ -19,16 +20,10 @@ export default function InventoryPage() {
   const role = (session?.user as any)?.role;
   const isManager = ["MANAGER", "ADMIN"].includes(role);
   const isAdmin = role === "ADMIN";
-  const [items, setItems] = useState<any[]>([]);
-  const [cats, setCats] = useState<any[]>([]);
-  const [sups, setSups] = useState<any[]>([]);
-  const [locs, setLocs] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [areaTab, setAreaTab] = useState<"KITCHEN" | "FLOOR">("KITCHEN");
   const [editing, setEditing] = useState<any | null>(null);
-  const [loading, setLoading] = useState(true);
   const [showArchived, setShowArchived] = useState(false);
-  const [archived, setArchived] = useState<any[]>([]);
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [selArch, setSelArch] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
@@ -43,17 +38,33 @@ export default function InventoryPage() {
   const [quickNotes, setQuickNotes] = useState<Record<string, string>>({});
   const [quickSaving, setQuickSaving] = useState(false);
   const [quickMsg, setQuickMsg] = useState("");
-  const didInitialLoad = useRef(false);
+  const inventory = useApiResource<any[]>("/api/inventory");
+  const categories = useApiResource<any[]>("/api/categories", { ttlMs: 10 * 60 * 1000 });
+  const suppliers = useApiResource<any[]>("/api/suppliers", { ttlMs: 10 * 60 * 1000 });
+  const locations = useApiResource<any[]>("/api/locations", { ttlMs: 10 * 60 * 1000 });
+  const archivedItems = useApiResource<any[]>("/api/inventory?archived=1", { enabled: showArchived });
 
-  const load = () => api("/api/inventory").then((d) => { setItems(d); setLoading(false); });
-  const loadArchived = () => api("/api/inventory?archived=1").then(setArchived);
-  useEffect(() => {
-    if (didInitialLoad.current) return;
-    didInitialLoad.current = true;
-    load(); api("/api/categories").then(setCats); api("/api/suppliers").then(setSups); api("/api/locations").then(setLocs);
-  }, []);
+  const items = inventory.data ?? [];
+  const cats = categories.data ?? [];
+  const sups = suppliers.data ?? [];
+  const locs = locations.data ?? [];
+  const archived = archivedItems.data ?? [];
+  const loading = inventory.loading && !inventory.data;
 
-  function toggleArchived() { const n = !showArchived; setShowArchived(n); if (n) loadArchived(); }
+  function invalidateInventoryDependents() {
+    invalidateApiCache([
+      "/api/orders/suggestions",
+      "/api/reports",
+      "/api/sales/unmapped",
+    ]);
+  }
+
+  async function reloadInventoryData() {
+    await inventory.reload(true);
+    invalidateInventoryDependents();
+  }
+
+  function toggleArchived() { setShowArchived(!showArchived); }
 
   async function save() {
     const body = { ...editing,
@@ -68,23 +79,23 @@ export default function InventoryPage() {
       locationId: editing.locationId || null };
     if (editing.id) await api(`/api/inventory/${editing.id}`, { method: "PATCH", body: JSON.stringify(body) });
     else await api("/api/inventory", { method: "POST", body: JSON.stringify(body) });
-    setEditing(null); load();
+    setEditing(null); await reloadInventoryData();
   }
 
   async function remove(id: string) {
     if (!window.confirm(t("confirmArchiveItem"))) return;
     await api(`/api/inventory/${id}`, { method: "DELETE" });
-    setEditing(null); load(); if (showArchived) loadArchived();
+    setEditing(null); await reloadInventoryData(); if (showArchived) await archivedItems.reload(true);
   }
 
   async function restore(id: string) {
     await api(`/api/inventory/${id}`, { method: "PATCH", body: JSON.stringify({ isActive: true, deletedAt: null, deletedById: null }) });
-    loadArchived(); load();
+    await archivedItems.reload(true); await reloadInventoryData();
   }
 
   async function permanentDelete(id: string) {
     if (!window.confirm(t("confirmPermanentDelete"))) return;
-    try { await api(`/api/inventory/${id}?hard=1`, { method: "DELETE" }); loadArchived(); }
+    try { await api(`/api/inventory/${id}?hard=1`, { method: "DELETE" }); await archivedItems.reload(true); }
     catch (e: any) { alert(e.message); }
   }
 
@@ -95,15 +106,15 @@ export default function InventoryPage() {
   async function bulkArchive() {
     if (!window.confirm(t("confirmArchiveItem"))) return;
     await api("/api/inventory/bulk", { method: "POST", body: JSON.stringify({ action: "archive", ids: [...sel] }) });
-    setSel(new Set()); load(); if (showArchived) loadArchived();
+    setSel(new Set()); await reloadInventoryData(); if (showArchived) await archivedItems.reload(true);
   }
   async function bulkAssignCategory() {
     await api("/api/inventory/bulk", { method: "POST", body: JSON.stringify({ action: "category", ids: [...sel], categoryId: bulkCat || null }) });
-    setSel(new Set()); setBulkCat(""); load();
+    setSel(new Set()); setBulkCat(""); await reloadInventoryData();
   }
   async function bulkRestore() {
     await api("/api/inventory/bulk", { method: "POST", body: JSON.stringify({ action: "restore", ids: [...selArch] }) });
-    setSelArch(new Set()); loadArchived(); load();
+    setSelArch(new Set()); await archivedItems.reload(true); await reloadInventoryData();
   }
   async function bulkPermanentDelete() {
     if (!window.confirm(t("confirmPermanentDelete"))) return;
@@ -111,7 +122,7 @@ export default function InventoryPage() {
     try {
       const res = await api("/api/inventory/bulk", { method: "POST", body: JSON.stringify({ action: "permanentDelete", ids: [...selArch] }) });
       setBulkResult(res);
-      setSelArch(new Set()); loadArchived(); load();
+      setSelArch(new Set()); await archivedItems.reload(true); await reloadInventoryData();
     } catch (e: any) {
       setBulkResult({ error: e.message });
     } finally {
@@ -127,7 +138,7 @@ export default function InventoryPage() {
     try {
       const res = await api("/api/inventory/bulk", { method: "POST", body: JSON.stringify({ action: "forceDelete", ids: [...selArch] }) });
       setBulkResult(res);
-      setSelArch(new Set()); loadArchived(); load();
+      setSelArch(new Set()); await archivedItems.reload(true); await reloadInventoryData();
     } catch (e: any) {
       setBulkResult({ error: e.message });
     } finally {
@@ -142,7 +153,7 @@ export default function InventoryPage() {
       const dupes = [...sel].filter((id) => id !== mergeTarget);
       await api("/api/inventory/merge", { method: "POST", body: JSON.stringify({ targetId: mergeTarget, duplicateIds: dupes }) });
       setMergeOpen(false); setMergeTarget(""); setSel(new Set());
-      load(); if (showArchived) loadArchived();
+      await reloadInventoryData(); if (showArchived) await archivedItems.reload(true);
     } catch (e: any) {
       setBulkResult({ error: e.message });
     } finally {
@@ -168,7 +179,7 @@ export default function InventoryPage() {
           items: changed.map((i) => ({ itemId: i.id, newQty: Number(quickQty[i.id]), note: quickNotes[i.id] || undefined })),
         }),
       });
-      setQuickQty({}); setQuickNotes({}); setQuickMsg(t("quickUpdateSuccess")); load();
+      setQuickQty({}); setQuickNotes({}); setQuickMsg(t("quickUpdateSuccess")); await reloadInventoryData();
     } catch (e: any) { setQuickMsg(e.message || "Error"); }
     finally { setQuickSaving(false); }
   }

@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import { api } from "@/lib/fetcher";
+import { invalidateApiCache } from "@/lib/client-cache";
 import { Card, Field, Input, PageSpinner, EmptyState, Badge } from "@/components/ui";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 
@@ -19,11 +20,14 @@ export default function CategoriesPage() {
     const body = { nameHe: editing.nameHe, nameEn: editing.nameEn, kind: editing.kind, sortOrder: Number(editing.sortOrder) || 0 };
     if (editing.id) await api(`/api/categories/${editing.id}`, { method: "PATCH", body: JSON.stringify(body) });
     else await api("/api/categories", { method: "POST", body: JSON.stringify(body) });
+    invalidateApiCache(["/api/categories", "/api/inventory", "/api/reports"]);
     setEditing(null); load();
   }
   async function remove(id: string) {
     if (!window.confirm(t("confirmArchiveItem"))) return;
-    await api(`/api/categories/${id}`, { method: "DELETE" }); load();
+    await api(`/api/categories/${id}`, { method: "DELETE" });
+    invalidateApiCache(["/api/categories", "/api/inventory", "/api/reports"]);
+    load();
   }
 
   if (loading) return <PageSpinner />;

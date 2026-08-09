@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import { useSession } from "next-auth/react";
 import { api } from "@/lib/fetcher";
+import { invalidateApiCache } from "@/lib/client-cache";
 import { Card, Input, Field, SearchInput, PageSpinner, EmptyState } from "@/components/ui";
 import { fmtDays } from "@/lib/format";
 import { Plus, Pencil, Package, CalendarClock, Truck as TruckIcon, Wallet } from "lucide-react";
@@ -40,17 +41,20 @@ export default function SuppliersPage() {
       minOrderAmount: editing.minOrderAmount === "" || editing.minOrderAmount == null ? null : Number(editing.minOrderAmount) };
     if (editing.id) await api(`/api/suppliers/${editing.id}`, { method: "PATCH", body: JSON.stringify(body) });
     else await api("/api/suppliers", { method: "POST", body: JSON.stringify(body) });
+    invalidateApiCache(["/api/suppliers", "/api/inventory", "/api/orders", "/api/orders/suggestions"]);
     setEditing(null); load();
   }
 
   async function remove(id: string) {
     if (!window.confirm(t("confirmArchiveSupplier"))) return;
     await api(`/api/suppliers/${id}`, { method: "DELETE" });
+    invalidateApiCache(["/api/suppliers", "/api/inventory", "/api/orders", "/api/orders/suggestions"]);
     setEditing(null); load(); if (showArchived) loadArchived();
   }
 
   async function restore(id: string) {
     await api(`/api/suppliers/${id}`, { method: "PATCH", body: JSON.stringify({ isActive: true, deletedAt: null, deletedById: null }) });
+    invalidateApiCache(["/api/suppliers", "/api/inventory", "/api/orders", "/api/orders/suggestions"]);
     loadArchived(); load();
   }
 
@@ -58,6 +62,7 @@ export default function SuppliersPage() {
   async function bulkArchive() {
     if (!window.confirm(t("confirmArchiveSupplier"))) return;
     await api("/api/suppliers/bulk", { method: "POST", body: JSON.stringify({ action: "archive", ids: [...sel] }) });
+    invalidateApiCache(["/api/suppliers", "/api/inventory", "/api/orders", "/api/orders/suggestions"]);
     setSel(new Set()); load(); if (showArchived) loadArchived();
   }
 

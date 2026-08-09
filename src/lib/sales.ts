@@ -79,11 +79,49 @@ function levenshtein(a: string, b: string): number {
 export function matchScore(posName: string, itemName: string): number {
   const a = normalizeProductName(posName);
   const b = normalizeProductName(itemName);
+  return matchScoreNormalized(a, b);
+}
+
+function matchScoreNormalized(a: string, b: string): number {
   if (!a || !b) return 0;
   if (a === b) return 1;
   if (b.includes(a) || a.includes(b)) return 0.85;
   const dist = levenshtein(a, b);
   return Math.max(0, 1 - dist / Math.max(a.length, b.length));
+}
+
+export type PreparedMatchItem = {
+  id: string;
+  normalizedNameHe: string;
+  normalizedNameEn: string;
+};
+
+export function prepareMatchItems(
+  items: { id: string; nameHe: string; nameEn: string }[]
+): PreparedMatchItem[] {
+  return items.map((item) => ({
+    id: item.id,
+    normalizedNameHe: normalizeProductName(item.nameHe),
+    normalizedNameEn: normalizeProductName(item.nameEn),
+  }));
+}
+
+export function suggestPreparedMatches(
+  normalizedPosName: string,
+  items: PreparedMatchItem[],
+  limit = 3
+): { id: string; score: number }[] {
+  return items
+    .map((item) => ({
+      id: item.id,
+      score: Math.max(
+        matchScoreNormalized(normalizedPosName, item.normalizedNameHe),
+        matchScoreNormalized(normalizedPosName, item.normalizedNameEn)
+      ),
+    }))
+    .filter((s) => s.score >= 0.4)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
 }
 
 /** Return the top N inventory items most likely to match a POS product name. */
@@ -92,9 +130,5 @@ export function suggestMatches(
   items: { id: string; nameHe: string; nameEn: string }[],
   limit = 3
 ): { id: string; score: number }[] {
-  return items
-    .map((item) => ({ id: item.id, score: Math.max(matchScore(posName, item.nameHe), matchScore(posName, item.nameEn)) }))
-    .filter((s) => s.score >= 0.4)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, limit);
+  return suggestPreparedMatches(normalizeProductName(posName), prepareMatchItems(items), limit);
 }

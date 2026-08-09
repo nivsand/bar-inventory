@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import { api } from "@/lib/fetcher";
+import { invalidateApiCache } from "@/lib/client-cache";
 import { Card, Field, Input, PageSpinner, EmptyState } from "@/components/ui";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 
@@ -19,11 +20,14 @@ export default function LocationsPage() {
     const body = { nameHe: editing.nameHe, nameEn: editing.nameEn, sortOrder: Number(editing.sortOrder) || 0 };
     if (editing.id) await api(`/api/locations/${editing.id}`, { method: "PATCH", body: JSON.stringify(body) });
     else await api("/api/locations", { method: "POST", body: JSON.stringify(body) });
+    invalidateApiCache(["/api/locations", "/api/inventory", "/api/counts"]);
     setEditing(null); load();
   }
   async function remove(id: string) {
     if (!window.confirm(t("confirmArchiveItem"))) return;
-    await api(`/api/locations/${id}`, { method: "DELETE" }); load();
+    await api(`/api/locations/${id}`, { method: "DELETE" });
+    invalidateApiCache(["/api/locations", "/api/inventory", "/api/counts"]);
+    load();
   }
 
   if (loading) return <PageSpinner />;

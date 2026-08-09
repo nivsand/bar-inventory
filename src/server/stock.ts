@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { AdjustmentSource, Prisma } from "@prisma/client";
 
@@ -117,33 +118,59 @@ export async function setBatchAbsoluteStock(
 ) {
   if (adjustments.length === 0) return;
 
-  const itemIds = [...new Set(adjustments.map((a) => a.itemId))];
-  const items = await tx.inventoryItem.findMany({
-    where: { id: { in: itemIds } },
-    select: { id: true, currentQty: true },
-  });
-  const currentById = new Map(items.map((i) => [i.id, i.currentQty]));
+  const rows = adjustments.map((adj) => ({ ...adj, adjustmentId: randomUUID() }));
+  const values = Prisma.join(rows.map((r) => Prisma.sql`(
+    ${r.adjustmentId},
+    ${r.itemId},
+    CAST(${r.countedQty} AS double precision),
+    ${r.source},
+    ${r.refType ?? null},
+    ${r.refId ?? null},
+    ${r.userId ?? null},
+    ${r.note ?? null}
+  )`));
 
-  const results = adjustments.map((adj) => {
-    const current = currentById.get(adj.itemId) ?? 0;
-    const delta = Math.round((adj.countedQty - current) * 1000) / 1000;
-    return { ...adj, delta, resultQty: adj.countedQty };
-  });
+  const inserted = await tx.$executeRaw`
+    WITH input("adjustmentId", "itemId", "countedQty", "source", "refType", "refId", "userId", "note") AS (
+      VALUES ${values}
+    ),
+    current AS (
+      SELECT
+        i."id" AS "itemId",
+        i."currentQty" AS "previousQty",
+        input."adjustmentId",
+        input."countedQty",
+        input."source",
+        input."refType",
+        input."refId",
+        input."userId",
+        input."note"
+      FROM "InventoryItem" i
+      JOIN input ON input."itemId" = i."id"
+    ),
+    updated AS (
+      UPDATE "InventoryItem" i
+      SET "currentQty" = current."countedQty"
+      FROM current
+      WHERE i."id" = current."itemId"
+      RETURNING i."id"
+    )
+    INSERT INTO "InventoryAdjustment" ("id", "itemId", "delta", "resultQty", "source", "refType", "refId", "userId", "note")
+    SELECT
+      current."adjustmentId",
+      current."itemId",
+      ROUND((current."countedQty" - current."previousQty")::numeric, 3)::double precision,
+      current."countedQty",
+      CAST(current."source" AS "AdjustmentSource"),
+      current."refType",
+      current."refId",
+      current."userId",
+      current."note"
+    FROM current
+    JOIN updated ON updated."id" = current."itemId"
+  `;
 
-  for (const r of results) {
-    await tx.inventoryItem.update({ where: { id: r.itemId }, data: { currentQty: r.resultQty } });
+  if (inserted !== rows.length) {
+    throw new Error(`Could not apply absolute stock for ${rows.length - inserted} item(s)`);
   }
-
-  await tx.inventoryAdjustment.createMany({
-    data: results.map((r) => ({
-      itemId: r.itemId,
-      delta: r.delta,
-      resultQty: r.resultQty,
-      source: r.source,
-      refType: r.refType,
-      refId: r.refId,
-      userId: r.userId,
-      note: r.note,
-    })),
-  });
 }

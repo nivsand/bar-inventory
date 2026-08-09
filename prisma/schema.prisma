@@ -599,6 +599,7 @@ model SalesUpload {
   lines      SalesLine[]
 
   @@index([year, weekNumber])
+  @@index([year, weekNumber, uploadedAt])
 }
 
 // One product line from an uploaded report, as it appeared in the POS export

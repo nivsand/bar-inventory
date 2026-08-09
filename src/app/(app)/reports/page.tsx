@@ -1,8 +1,8 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import { TKey } from "@/lib/i18n/translations";
-import { api } from "@/lib/fetcher";
+import { useApiResource } from "@/lib/client-cache";
 import { Card, Spinner, EmptyState } from "@/components/ui";
 import { PieChart, Slice } from "@/components/PieChart";
 import { SalesReports } from "@/components/SalesReports";
@@ -45,13 +45,8 @@ export default function ReportsPage() {
   const { t } = useI18n();
   const [active, setActive] = useState<string>("inventory");
   const [view, setView] = useState<"table" | "chart">("table");
-  const [rows, setRows] = useState<any[] | null>(null);
-
-  useEffect(() => {
-    if (active === "sales") return;
-    setRows(null);
-    api(`/api/reports/${active}?format=json`).then((d) => setRows(d.rows)).catch(() => setRows([]));
-  }, [active]);
+  const report = useApiResource<{ rows: any[] }>(active === "sales" ? null : `/api/reports/${active}?format=json`);
+  const rows = active === "sales" ? null : (report.loading && !report.data ? null : report.data?.rows ?? []);
 
   const headers = rows && rows.length ? Object.keys(rows[0]) : [];
   const slices = rows ? aggregate(rows, active) : [];

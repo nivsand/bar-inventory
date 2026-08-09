@@ -5,7 +5,7 @@ export const revalidate = 0;
 import { requireManager } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ok, serverError } from "@/lib/api";
-import { suggestMatches } from "@/lib/sales";
+import { normalizeProductName, prepareMatchItems, suggestPreparedMatches } from "@/lib/sales";
 
 // Unmapped sales lines plus best-guess inventory item suggestions, for the
 // manual product-mapping screen.
@@ -19,7 +19,17 @@ async function GET__handler() {
       take: 200,
     });
     const items = await prisma.inventoryItem.findMany({ where: { isActive: true }, select: { id: true, nameHe: true, nameEn: true } });
-    const out = lines.map((l) => ({ ...l, suggestions: suggestMatches(l.posProductName, items) }));
+    const preparedItems = prepareMatchItems(items);
+    const suggestionsByName = new Map<string, { id: string; score: number }[]>();
+    const out = lines.map((l) => {
+      const normalizedName = normalizeProductName(l.posProductName);
+      let suggestions = suggestionsByName.get(normalizedName);
+      if (!suggestions) {
+        suggestions = suggestPreparedMatches(normalizedName, preparedItems);
+        suggestionsByName.set(normalizedName, suggestions);
+      }
+      return { ...l, suggestions };
+    });
     return ok(out);
   } catch (e) { return serverError(e); }
 }

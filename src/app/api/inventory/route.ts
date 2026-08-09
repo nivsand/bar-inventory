@@ -7,7 +7,7 @@ import { requireUser, requireManager } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ok, created, serverError } from "@/lib/api";
 import { logAudit } from "@/server/audit";
-import { z } from "zod";
+import { inventoryCreateSchema } from "@/server/validation";
 
 const orderPickerSelect = {
   id: true,
@@ -63,28 +63,10 @@ async function GET__handler(req: Request) {
   } catch (e) { return serverError(e); }
 }
 
-const schema = z.object({
-  nameHe: z.string().min(1), nameEn: z.string().min(1), unit: z.string().min(1),
-  kind: z.enum(["RAW", "PREP"]).default("RAW"),
-  area: z.enum(["KITCHEN", "FLOOR"]).default("KITCHEN"),
-  inCount: z.boolean().default(true),
-  categoryId: z.string().nullable().optional(), supplierId: z.string().nullable().optional(),
-  locationId: z.string().nullable().optional(),
-  currentQty: z.coerce.number().default(0), minQty: z.coerce.number().default(0), parQty: z.coerce.number().default(0),
-  purchasePrice: z.coerce.number().min(0).default(0),
-  avgDailyUsage: z.coerce.number().default(0), packSize: z.coerce.number().nullable().optional(),
-  orderMultiple: z.coerce.number().nullable().optional(), shelfLifeDays: z.coerce.number().nullable().optional(),
-  orderUnitNameHe: z.string().nullable().optional(), orderUnitNameEn: z.string().nullable().optional(),
-  unitsPerOrderUnit: z.coerce.number().nullable().optional(),
-  messageUnitHe: z.string().nullable().optional(), messageUnitEn: z.string().nullable().optional(),
-  showBaseQuantityInMessage: z.boolean().default(false),
-  notes: z.string().nullable().optional(),
-});
-
 async function POST__handler(req: Request) {
   try {
     const user = await requireManager();
-    const data = schema.parse(await req.json());
+    const data = inventoryCreateSchema.parse(await req.json());
     const item = await prisma.inventoryItem.create({ data });
     await logAudit({ userId: user.id, entity: "InventoryItem", entityId: item.id, action: "CREATE" });
     return created(item);

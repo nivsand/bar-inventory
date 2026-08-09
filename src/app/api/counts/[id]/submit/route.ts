@@ -2,24 +2,13 @@ import { withRouteTiming } from "@/lib/perf";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ok, serverError, badRequest } from "@/lib/api";
-import { z } from "zod";
-
-// Validate at the boundary so bad numbers return a clear 400 instead of a 500.
-const schema = z.object({
-  entries: z.array(
-    z.object({
-      itemId: z.string().min(1),
-      countedQty: z.number().finite().nonnegative(),
-      note: z.string().nullable().optional(),
-    })
-  ),
-  notes: z.string().nullable().optional(),
-});
+import { upsertDailyCountEntries } from "@/server/counts";
+import { countSubmitSchema } from "@/server/validation";
 
 async function POST__handler(req: Request, { params }: { params: { id: string } }) {
   try {
     const user = await requireUser();
-    const parsed = schema.safeParse(await req.json());
+    const parsed = countSubmitSchema.safeParse(await req.json());
     if (!parsed.success) return badRequest("Invalid count payload: " + parsed.error.issues.map((i) => i.message).join(", "));
     const { entries, notes } = parsed.data;
 
@@ -39,19 +28,13 @@ async function POST__handler(req: Request, { params }: { params: { id: string } 
 
     await prisma.$transaction(
       async (tx) => {
-        for (const e of validEntries) {
-          await tx.dailyCountEntry.upsert({
-            where: { countId_itemId: { countId: params.id, itemId: e.itemId } },
-            update: { countedQty: e.countedQty, note: e.note ?? null, previousQty: prevById.get(e.itemId) },
-            create: {
-              countId: params.id,
-              itemId: e.itemId,
-              countedQty: e.countedQty,
-              previousQty: prevById.get(e.itemId),
-              note: e.note ?? null,
-            },
-          });
-        }
+        await upsertDailyCountEntries(tx, validEntries.map((e) => ({
+          countId: params.id,
+          itemId: e.itemId,
+          countedQty: e.countedQty,
+          previousQty: prevById.get(e.itemId) ?? null,
+          note: e.note ?? null,
+        })));
         await tx.dailyCount.update({
           where: { id: params.id },
           data: { status: "SUBMITTED", submittedAt: new Date(), notes: notes ?? null, countedById: user.id },

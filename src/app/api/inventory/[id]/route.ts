@@ -4,45 +4,17 @@ import { prisma } from "@/lib/prisma";
 import { ok, serverError, badRequest } from "@/lib/api";
 import { logAudit, diff } from "@/server/audit";
 import { deleteOrArchiveItem, hardDeleteItem, ItemReferencedError } from "@/server/archive";
-import { z } from "zod";
+import { inventoryPatchSchema } from "@/server/validation";
 
 // Whitelist of updatable fields. This is the fix for the edit-save bug: the
 // client sends the whole item object (including the included `category` and
 // `supplier` relation objects, plus id/createdAt/updatedAt), and passing that
 // straight to prisma.update() makes Prisma throw on the unknown relation args.
 // Parsing through this schema strips everything that isn't an updatable column.
-const patchSchema = z.object({
-  nameHe: z.string().min(1).optional(),
-  nameEn: z.string().min(1).optional(),
-  unit: z.string().min(1).optional(),
-  kind: z.enum(["RAW", "PREP"]).optional(),
-  area: z.enum(["KITCHEN", "FLOOR"]).optional(),
-  inCount: z.boolean().optional(),
-  categoryId: z.string().nullable().optional(),
-  supplierId: z.string().nullable().optional(),
-  locationId: z.string().nullable().optional(),
-  currentQty: z.coerce.number().optional(),
-  minQty: z.coerce.number().optional(),
-  parQty: z.coerce.number().optional(),
-  purchasePrice: z.coerce.number().min(0).optional(),
-  avgDailyUsage: z.coerce.number().optional(),
-  packSize: z.coerce.number().nullable().optional(),
-  orderMultiple: z.coerce.number().nullable().optional(),
-  shelfLifeDays: z.coerce.number().nullable().optional(),
-  orderUnitNameHe: z.string().nullable().optional(),
-  orderUnitNameEn: z.string().nullable().optional(),
-  unitsPerOrderUnit: z.coerce.number().nullable().optional(),
-  messageUnitHe: z.string().nullable().optional(),
-  messageUnitEn: z.string().nullable().optional(),
-  showBaseQuantityInMessage: z.boolean().optional(),
-  notes: z.string().nullable().optional(),
-  isActive: z.boolean().optional(), // used by archive restore
-}).strip();
-
 async function PATCH__handler(req: Request, { params }: { params: { id: string } }) {
   try {
     const user = await requireManager();
-    const parsed = patchSchema.safeParse(await req.json());
+    const parsed = inventoryPatchSchema.safeParse(await req.json());
     if (!parsed.success) return badRequest(parsed.error.issues.map((i) => i.message).join(", "));
     const data: any = { ...parsed.data };
     // Restoring an archived item clears the archive markers.
