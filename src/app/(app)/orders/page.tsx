@@ -180,9 +180,85 @@ export default function OrdersPage() {
 
   if (loading) return <PageSpinner />;
 
+  const orderSections = {
+    open: { key: "open", labelKey: "openOrders" as const, list: orders.filter((o) => OPEN_ORDER_STATUSES.has(o.status)) },
+    history: { key: "history", labelKey: "history" as const, list: orders.filter((o) => !OPEN_ORDER_STATUSES.has(o.status)) },
+  };
+
+  const renderOrderSection = (sectionDef: typeof orderSections.open | typeof orderSections.history) => (
+    <section key={sectionDef.key} className="space-y-3">
+      <h2 className="font-semibold text-lg">{t(sectionDef.labelKey)} ({sectionDef.list.length})</h2>
+      {sectionDef.list.length === 0 && <Card><EmptyState label={t("noData")} /></Card>}
+      {sectionDef.list.map((o) => {
+        const isOpen = o.status === "NEED_TO_ORDER";
+        const editable = o.status !== "CANCELLED" && o.status !== "ARRIVED";
+        const expanded = expandedOrders.has(o.id);
+        return (
+          <Card key={o.id}>
+            <div className="flex justify-between items-center gap-2 flex-wrap">
+              <div>
+                <span className="font-semibold text-gray-900">{name(o.supplier)}</span>
+                <Badge tone={STATUS_TONE[o.status] ?? "neutral"} className="ms-2">{o.status}</Badge>
+                <div className={`text-sm font-semibold mt-1 ${minimumReached(o.currentOrderValue ?? calculateOrderValue(o.items), o.supplierMinimum ?? o.supplier?.minOrderAmount) ? "text-emerald-700" : "text-amber-700"}`}>
+                  {fmtMoney(o.currentOrderValue ?? calculateOrderValue(o.items), locale)} / {(o.supplierMinimum ?? o.supplier?.minOrderAmount) == null ? t("noMinimumOrder") : fmtMoney(o.supplierMinimum ?? o.supplier.minOrderAmount, locale)}
+                </div>
+                <p className="text-sm text-gray-400">
+                  {new Date(o.createdAt).toLocaleString()} · {o.items.length} {t("item")}
+                  {o.createdBy?.name && <> · {o.createdBy.name}</>}
+                  {o.sentAt && <> · {t("markAsSent")}: {new Date(o.sentAt).toLocaleString()}</>}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {isManager && isOpen && <button className="btn-primary text-sm" onClick={() => markSent(o.id)}>{t("markAsSent")}</button>}
+                <select className="touch-input h-10 w-auto text-sm" value={o.status} onChange={(e) => setStatus(o.id, e.target.value)}>
+                  {ORDER_STATUS_ORDER.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+                {isManager && <button className="text-red-600 text-sm" onClick={() => deleteOrder(o.id, !isOpen)}>{isOpen ? t("delete") : t("cancelOrder")}</button>}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2 mt-2 items-center">
+              <button className="text-brand-600 text-sm" onClick={() => toggleOrderExpand(o.id)}>
+                {expanded ? t("hideProducts") : `${t("showProducts")} (${o.items.length})`}
+              </button>
+              <button className="text-brand-600 text-sm" onClick={() => openMessage(o)}>{t("copyMessage")}</button>
+              {isManager && editable && (
+                addTo === o.id ? (
+                  <span className="flex flex-wrap gap-2 items-center">
+                    <select className="touch-input h-10 w-auto text-sm" value={addForm.itemId} onChange={(e) => setAddForm({ ...addForm, itemId: e.target.value })}>
+                      <option value="">—</option>
+                      {inventory
+                        .filter((i) => i.supplierId === o.supplierId && !o.items.some((oi: any) => oi.itemId === i.id))
+                        .map((i) => <option key={i.id} value={i.id}>{name(i)}</option>)}
+                    </select>
+                    <input className="touch-input h-10 w-20 text-center" type="number" placeholder={t("quantity")} value={addForm.qty} onChange={(e) => setAddForm({ ...addForm, qty: e.target.value })} />
+                    <button className="btn-primary text-sm" onClick={() => addItem(o.id)} disabled={!addForm.itemId || !addForm.qty}>{t("add")}</button>
+                    <button className="btn-ghost text-sm" onClick={() => { setAddTo(null); setAddForm({ itemId: "", qty: "" }); }}>{t("cancel")}</button>
+                  </span>
+                ) : (
+                  <button className="btn-ghost text-sm" onClick={() => { setAddTo(o.id); setAddForm({ itemId: "", qty: "" }); }}><Plus className="h-3.5 w-3.5" />{t("addProduct")}</button>
+                )
+              )}
+            </div>
+
+            {expanded && (
+              <ul className="mt-2 text-sm text-gray-600 border-t pt-2">
+                {o.items.map((oi: any) => (
+                  <li key={oi.id} className="flex justify-between py-0.5"><span>{name(oi.item)}</span><span>{oi.orderedQty} {oi.unit}</span></li>
+                ))}
+              </ul>
+            )}
+          </Card>
+        );
+      })}
+    </section>
+  );
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-900">{t("orders")}</h1>
+
+      {renderOrderSection(orderSections.open)}
 
       <section className="space-y-4">
         <h2 className="font-semibold text-lg">{t("suggestedQty")} · {t("generateOrder")}</h2>
@@ -276,77 +352,7 @@ export default function OrdersPage() {
         })()}
       </section>
 
-      {[
-        { key: "open", labelKey: "openOrders" as const, list: orders.filter((o) => OPEN_ORDER_STATUSES.has(o.status)) },
-        { key: "history", labelKey: "history" as const, list: orders.filter((o) => !OPEN_ORDER_STATUSES.has(o.status)) },
-      ].map((sectionDef) => (
-        <section key={sectionDef.key} className="space-y-3">
-          <h2 className="font-semibold text-lg">{t(sectionDef.labelKey)} ({sectionDef.list.length})</h2>
-          {sectionDef.list.length === 0 && <Card><EmptyState label={t("noData")} /></Card>}
-          {sectionDef.list.map((o) => {
-            const isOpen = o.status === "NEED_TO_ORDER";
-            const editable = o.status !== "CANCELLED" && o.status !== "ARRIVED";
-            const expanded = expandedOrders.has(o.id);
-            return (
-              <Card key={o.id}>
-                <div className="flex justify-between items-center gap-2 flex-wrap">
-                  <div>
-                    <span className="font-semibold text-gray-900">{name(o.supplier)}</span>
-                    <Badge tone={STATUS_TONE[o.status] ?? "neutral"} className="ms-2">{o.status}</Badge>
-                    <div className={`text-sm font-semibold mt-1 ${minimumReached(o.currentOrderValue ?? calculateOrderValue(o.items), o.supplierMinimum ?? o.supplier?.minOrderAmount) ? "text-emerald-700" : "text-amber-700"}`}>
-                      {fmtMoney(o.currentOrderValue ?? calculateOrderValue(o.items), locale)} / {(o.supplierMinimum ?? o.supplier?.minOrderAmount) == null ? t("noMinimumOrder") : fmtMoney(o.supplierMinimum ?? o.supplier.minOrderAmount, locale)}
-                    </div>
-                    <p className="text-sm text-gray-400">
-                      {new Date(o.createdAt).toLocaleString()} · {o.items.length} {t("item")}
-                      {o.createdBy?.name && <> · {o.createdBy.name}</>}
-                      {o.sentAt && <> · {t("markAsSent")}: {new Date(o.sentAt).toLocaleString()}</>}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {isManager && isOpen && <button className="btn-primary text-sm" onClick={() => markSent(o.id)}>{t("markAsSent")}</button>}
-                    <select className="touch-input h-10 w-auto text-sm" value={o.status} onChange={(e) => setStatus(o.id, e.target.value)}>
-                      {ORDER_STATUS_ORDER.map((s) => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                    {isManager && <button className="text-red-600 text-sm" onClick={() => deleteOrder(o.id, !isOpen)}>{isOpen ? t("delete") : t("cancelOrder")}</button>}
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap gap-2 mt-2 items-center">
-                  <button className="text-brand-600 text-sm" onClick={() => toggleOrderExpand(o.id)}>
-                    {expanded ? t("hideProducts") : `${t("showProducts")} (${o.items.length})`}
-                  </button>
-                  <button className="text-brand-600 text-sm" onClick={() => openMessage(o)}>{t("copyMessage")}</button>
-                  {isManager && editable && (
-                    addTo === o.id ? (
-                      <span className="flex flex-wrap gap-2 items-center">
-                        <select className="touch-input h-10 w-auto text-sm" value={addForm.itemId} onChange={(e) => setAddForm({ ...addForm, itemId: e.target.value })}>
-                          <option value="">—</option>
-                          {inventory
-                            .filter((i) => i.supplierId === o.supplierId && !o.items.some((oi: any) => oi.itemId === i.id))
-                            .map((i) => <option key={i.id} value={i.id}>{name(i)}</option>)}
-                        </select>
-                        <input className="touch-input h-10 w-20 text-center" type="number" placeholder={t("quantity")} value={addForm.qty} onChange={(e) => setAddForm({ ...addForm, qty: e.target.value })} />
-                        <button className="btn-primary text-sm" onClick={() => addItem(o.id)} disabled={!addForm.itemId || !addForm.qty}>{t("add")}</button>
-                        <button className="btn-ghost text-sm" onClick={() => { setAddTo(null); setAddForm({ itemId: "", qty: "" }); }}>{t("cancel")}</button>
-                      </span>
-                    ) : (
-                      <button className="btn-ghost text-sm" onClick={() => { setAddTo(o.id); setAddForm({ itemId: "", qty: "" }); }}><Plus className="h-3.5 w-3.5" />{t("addProduct")}</button>
-                    )
-                  )}
-                </div>
-
-                {expanded && (
-                  <ul className="mt-2 text-sm text-gray-600 border-t pt-2">
-                    {o.items.map((oi: any) => (
-                      <li key={oi.id} className="flex justify-between py-0.5"><span>{name(oi.item)}</span><span>{oi.orderedQty} {oi.unit}</span></li>
-                    ))}
-                  </ul>
-                )}
-              </Card>
-            );
-          })}
-        </section>
-      ))}
+      {renderOrderSection(orderSections.history)}
 
       {msg && (
         <div className="modal-overlay" onClick={() => setMsg(null)}>
