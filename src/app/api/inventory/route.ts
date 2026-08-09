@@ -9,6 +9,13 @@ import { ok, created, serverError } from "@/lib/api";
 import { logAudit } from "@/server/audit";
 import { z } from "zod";
 
+const orderPickerSelect = {
+  id: true,
+  nameHe: true,
+  nameEn: true,
+  supplierId: true,
+} as const;
+
 async function GET__handler(req: Request) {
   try {
     await requireUser();
@@ -18,6 +25,7 @@ async function GET__handler(req: Request) {
     const locationId = searchParams.get("locationId") || undefined; // physical storage/count location
     const inCount = searchParams.get("inCount") === "1";        // only count-enabled items
     const archived = searchParams.get("archived") === "1";
+    const mode = searchParams.get("mode") || undefined;
 
     // Archived (soft-deleted) items are manager/admin-only and never appear in
     // the normal active list or count forms.
@@ -27,6 +35,15 @@ async function GET__handler(req: Request) {
         where: { isActive: false, ...(kind ? { kind: kind as any } : {}) },
         include: { category: true, supplier: true },
         orderBy: [{ deletedAt: "desc" }],
+      });
+      return ok(items);
+    }
+
+    if (mode === "order-picker") {
+      const items = await prisma.inventoryItem.findMany({
+        where: { isActive: true, ...(kind ? { kind: kind as any } : {}) },
+        select: orderPickerSelect,
+        orderBy: [{ nameEn: "asc" }],
       });
       return ok(items);
     }

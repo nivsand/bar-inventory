@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import { api } from "@/lib/fetcher";
 import { Card, Spinner, Badge, EmptyState } from "@/components/ui";
@@ -11,19 +11,46 @@ const ACTION_TONE: Record<string, "ok" | "info" | "danger"> = {
   DELETE: "danger",
 };
 
+const AUDIT_PAGE_SIZE = 500;
+const emptyFilters = { userId: "", action: "", entity: "", from: "", to: "" };
+
 export default function AuditPage() {
   const { t } = useI18n();
   const [logs, setLogs] = useState<any[] | null>(null);
   const [entities, setEntities] = useState<string[]>([]);
   const [users, setUsers] = useState<any[]>([]);
-  const [f, setF] = useState({ userId: "", action: "", entity: "", from: "", to: "" });
+  const [f, setF] = useState(emptyFilters);
+  const [nextOffset, setNextOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const didInitialLoad = useRef(false);
 
-  function load() {
-    const qs = new URLSearchParams(Object.entries(f).filter(([, v]) => v) as any).toString();
-    setLogs(null);
-    api(`/api/audit${qs ? `?${qs}` : ""}`).then((d) => { setLogs(d.logs); setEntities(d.entities); });
+  function auditQuery(filters: typeof f, offset: number, includeMeta: boolean) {
+    const params = new URLSearchParams(Object.entries(filters).filter(([, v]) => v) as any);
+    params.set("limit", String(AUDIT_PAGE_SIZE));
+    params.set("offset", String(offset));
+    if (!includeMeta) params.set("includeMeta", "0");
+    const qs = params.toString();
+    return `/api/audit${qs ? `?${qs}` : ""}`;
   }
-  useEffect(() => { load(); api("/api/users").then(setUsers).catch(() => {}); /* eslint-disable-next-line */ }, []);
+
+  function load(nextFilters = f, offset = 0, append = false, includeMeta = false) {
+    if (append) setLoadingMore(true);
+    else setLogs(null);
+    api(auditQuery(nextFilters, offset, includeMeta)).then((d) => {
+      setLogs((prev) => append ? [...(prev || []), ...d.logs] : d.logs);
+      if (d.entities?.length) setEntities(d.entities);
+      setNextOffset(d.nextOffset ?? offset + d.logs.length);
+      setHasMore(!!d.hasMore);
+    }).finally(() => setLoadingMore(false));
+  }
+
+  useEffect(() => {
+    if (didInitialLoad.current) return;
+    didInitialLoad.current = true;
+    load(f, 0, false, true); api("/api/users").then(setUsers).catch(() => {});
+    /* eslint-disable-next-line */
+  }, []);
 
   return (
     <div className="space-y-4">
@@ -47,8 +74,8 @@ export default function AuditPage() {
           <input type="date" className="touch-input h-11 text-sm" value={f.to} onChange={(e) => setF({ ...f, to: e.target.value })} aria-label={t("toDate")} />
         </div>
         <div className="flex gap-2">
-          <button className="btn-primary text-sm" onClick={load}><Filter className="h-4 w-4" />{t("filter")}</button>
-          <button className="btn-ghost text-sm" onClick={() => { setF({ userId: "", action: "", entity: "", from: "", to: "" }); setTimeout(load, 0); }}><RotateCcw className="h-4 w-4" />{t("clearFilters")}</button>
+          <button className="btn-primary text-sm" onClick={() => load(f)}><Filter className="h-4 w-4" />{t("filter")}</button>
+          <button className="btn-ghost text-sm" onClick={() => { setF(emptyFilters); load(emptyFilters); }}><RotateCcw className="h-4 w-4" />{t("clearFilters")}</button>
         </div>
       </Card>
 
@@ -75,6 +102,13 @@ export default function AuditPage() {
               </tr>
             ))}</tbody>
           </table>
+          {hasMore && (
+            <div className="border-t border-gray-100 p-3 text-center">
+              <button className="btn-ghost text-sm" onClick={() => load(f, nextOffset, true)} disabled={loadingMore}>
+                {loadingMore ? t("processing") : t("loadMore")}
+              </button>
+            </div>
+          )}
           </div>
         )}
       </Card>

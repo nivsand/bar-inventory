@@ -1,6 +1,7 @@
 "use client";
 import React, { Profiler } from "react";
 import { SessionProvider } from "next-auth/react";
+import type { Session } from "next-auth";
 import { I18nProvider } from "@/lib/i18n/I18nProvider";
 import { Locale } from "@/lib/i18n/translations";
 
@@ -39,13 +40,13 @@ function onRender(
   });
 }
 
-export function Providers({ children, initialLocale }: { children: React.ReactNode; initialLocale: Locale }) {
+export function Providers({ children, initialLocale, session }: { children: React.ReactNode; initialLocale: Locale; session: Session | null }) {
   const content = process.env.NEXT_PUBLIC_BENCHMARK === "1"
     ? <Profiler id="app-root" onRender={onRender}>{children}</Profiler>
     : children;
 
   return (
-    <SessionProvider>
+    <SessionProvider session={session}>
       <I18nProvider initialLocale={initialLocale}>{content}</I18nProvider>
     </SessionProvider>
   );

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import { useSession } from "next-auth/react";
 import { api } from "@/lib/fetcher";
@@ -83,14 +83,20 @@ export default function OrdersPage() {
   const [addForm, setAddForm] = useState<{ itemId: string; qty: string }>({ itemId: "", qty: "" });
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
 
-  const load = () => Promise.all([api("/api/orders/suggestions"), api("/api/orders"), api("/api/inventory")])
+  const didInitialLoad = useRef(false);
+
+  const load = () => Promise.all([api("/api/orders/suggestions"), api("/api/orders"), api("/api/inventory?mode=order-picker")])
     .then(([s, o, inv]) => {
       setSugg(s); setOrders(o); setInventory(inv);
       const q: Record<string, number> = {};
       s.bySupplier.forEach((g: any) => g.items.forEach((it: any) => { q[it.itemId] = it.suggestedQty; }));
       setQty(q); setLoading(false);
     });
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    if (didInitialLoad.current) return;
+    didInitialLoad.current = true;
+    load();
+  }, []);
 
   function toggleOrderExpand(id: string) {
     setExpandedOrders((prev) => {

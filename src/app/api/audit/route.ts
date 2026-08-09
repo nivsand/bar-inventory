@@ -14,6 +14,9 @@ async function GET__handler(req: Request) {
     const entity = sp.get("entity") || undefined;
     const from = sp.get("from");
     const to = sp.get("to");
+    const limit = Math.min(Math.max(Number(sp.get("limit") ?? 500) || 500, 1), 500);
+    const offset = Math.max(Number(sp.get("offset") ?? 0) || 0, 0);
+    const includeMeta = sp.get("includeMeta") !== "0";
 
     const where: any = {};
     if (userId) where.userId = userId;
@@ -25,17 +28,36 @@ async function GET__handler(req: Request) {
       if (to) { const d = new Date(to); d.setHours(23, 59, 59, 999); where.createdAt.lte = d; }
     }
 
-    const logs = await prisma.auditLog.findMany({
+    const logsPromise = prisma.auditLog.findMany({
       where,
-      include: { user: { select: { name: true, email: true } } },
+      select: {
+        id: true,
+        userId: true,
+        entity: true,
+        entityId: true,
+        action: true,
+        field: true,
+        oldValue: true,
+        newValue: true,
+        createdAt: true,
+        user: { select: { name: true, email: true } },
+      },
       orderBy: { createdAt: "desc" },
-      take: 500,
+      skip: offset,
+      take: limit + 1,
     });
 
-    // Distinct entity types present, for the filter dropdown.
-    const entities = await prisma.auditLog.findMany({ distinct: ["entity"], select: { entity: true }, orderBy: { entity: "asc" } });
+    // Distinct entity types are stable metadata for the filter dropdown; callers
+    // can skip it on filter/page requests and reuse the first load.
+    const entitiesPromise = includeMeta
+      ? prisma.auditLog.findMany({ distinct: ["entity"], select: { entity: true }, orderBy: { entity: "asc" } })
+      : Promise.resolve([]);
 
-    return ok({ logs, entities: entities.map((e) => e.entity) });
+    const [rows, entities] = await Promise.all([logsPromise, entitiesPromise]);
+    const hasMore = rows.length > limit;
+    const logs = hasMore ? rows.slice(0, limit) : rows;
+
+    return ok({ logs, entities: entities.map((e) => e.entity), limit, offset, nextOffset: offset + logs.length, hasMore });
   } catch (e) {
     return serverError(e);
   }

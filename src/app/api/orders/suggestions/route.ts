@@ -25,9 +25,48 @@ async function GET__handler() {
     // Run all three independent DB queries in parallel instead of serially.
     const [suppliers, rawItems, prepItems, dismissals] = await Promise.all([
       prisma.supplier.findMany({ where: { isActive: true } }),
-      prisma.inventoryItem.findMany({ where: { isActive: true, kind: "RAW" }, include: { supplier: true } }),
+      prisma.inventoryItem.findMany({
+        where: { isActive: true, kind: "RAW" },
+        select: {
+          id: true,
+          nameHe: true,
+          nameEn: true,
+          unit: true,
+          currentQty: true,
+          minQty: true,
+          parQty: true,
+          avgDailyUsage: true,
+          purchasePrice: true,
+          packSize: true,
+          orderMultiple: true,
+          supplierId: true,
+          unitsPerOrderUnit: true,
+          orderUnitNameHe: true,
+          orderUnitNameEn: true,
+          messageUnitHe: true,
+          messageUnitEn: true,
+          showBaseQuantityInMessage: true,
+        },
+      }),
       prisma.prepItem.findMany({
-        include: { item: true, recipe: { include: { ingredients: { include: { item: true } } } } },
+        select: {
+          id: true,
+          itemId: true,
+          yieldQty: true,
+          item: { select: { nameHe: true, nameEn: true, unit: true, currentQty: true, minQty: true, parQty: true } },
+          recipe: {
+            select: {
+              ingredients: {
+                select: {
+                  itemId: true,
+                  qtyPerYield: true,
+                  unit: true,
+                  item: { select: { nameHe: true, nameEn: true, currentQty: true } },
+                },
+              },
+            },
+          },
+        },
       }),
       prisma.orderRecommendationDismissal.findMany({ where: { recommendationDate }, select: { supplierId: true } }),
     ]);

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import { useSession } from "next-auth/react";
 import { api } from "@/lib/fetcher";
@@ -43,10 +43,15 @@ export default function InventoryPage() {
   const [quickNotes, setQuickNotes] = useState<Record<string, string>>({});
   const [quickSaving, setQuickSaving] = useState(false);
   const [quickMsg, setQuickMsg] = useState("");
+  const didInitialLoad = useRef(false);
 
   const load = () => api("/api/inventory").then((d) => { setItems(d); setLoading(false); });
   const loadArchived = () => api("/api/inventory?archived=1").then(setArchived);
-  useEffect(() => { load(); api("/api/categories").then(setCats); api("/api/suppliers").then(setSups); api("/api/locations").then(setLocs); }, []);
+  useEffect(() => {
+    if (didInitialLoad.current) return;
+    didInitialLoad.current = true;
+    load(); api("/api/categories").then(setCats); api("/api/suppliers").then(setSups); api("/api/locations").then(setLocs);
+  }, []);
 
   function toggleArchived() { const n = !showArchived; setShowArchived(n); if (n) loadArchived(); }
 

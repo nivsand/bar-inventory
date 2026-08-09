@@ -35,7 +35,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang={locale} dir={dir}>
       <body>
-        <Providers initialLocale={locale}>{children}</Providers>
+        <Providers initialLocale={locale} session={session}>{children}</Providers>
         <PWARegister />
         <SpeedInsights />
       </body>

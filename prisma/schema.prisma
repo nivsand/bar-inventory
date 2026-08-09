@@ -219,6 +219,7 @@ model Supplier {
   orderRecommendationDismissals OrderRecommendationDismissal[]
 
   @@index([isActive])
+  @@index([isActive, nameEn])
 }
 
 // ----------------------------- INVENTORY ITEMS -----------------------------
@@ -283,6 +284,9 @@ model InventoryItem {
 
   @@index([isActive])
   @@index([kind])
+  @@index([isActive, kind])
+  @@index([isActive, area, kind, nameEn])
+  @@index([isActive, area, inCount, kind, nameEn])
   @@index([supplierId])
   @@index([categoryId])
   @@index([locationId])
@@ -375,6 +379,7 @@ model Order {
 
   @@index([supplierId])
   @@index([status])
+  @@index([createdAt])
 }
 
 model OrderItem {
@@ -697,6 +702,9 @@ model AuditLog {
   user User? @relation(fields: [userId], references: [id])
 
   @@index([entity, entityId])
+  @@index([entity, createdAt])
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
   @@index([createdAt])
 }
 
