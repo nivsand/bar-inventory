@@ -1,3 +1,4 @@
+import { withRouteTiming } from "@/lib/perf";
 import { requireManager, requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ok, serverError } from "@/lib/api";
@@ -9,7 +10,7 @@ import { logAudit } from "@/server/audit";
 //    ingredients (from the LATEST recipe) and produces the prep item, all
 //    through the stock ledger.
 //  - otherwise -> edit fields (manager/admin only).
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+async function PATCH__handler(req: Request, { params }: { params: { id: string } }) {
   try {
     const body = await req.json();
 
@@ -58,7 +59,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 }
 
 // Delete a prep task. Manager/Admin only.
-export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+async function DELETE__handler(_req: Request, { params }: { params: { id: string } }) {
   try {
     const user = await requireManager();
     await prisma.prepTask.delete({ where: { id: params.id } });
@@ -68,3 +69,7 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
     return serverError(e);
   }
 }
+
+// --- dev-only request timing (see src/lib/perf.ts) ---
+export const PATCH = withRouteTiming("PATCH", "/api/prep/tasks/[id]", PATCH__handler);
+export const DELETE = withRouteTiming("DELETE", "/api/prep/tasks/[id]", DELETE__handler);

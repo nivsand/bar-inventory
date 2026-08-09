@@ -1,3 +1,4 @@
+import { withRouteTiming } from "@/lib/perf";
 // Always render fresh from the DB.
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -11,7 +12,7 @@ import { ok, serverError } from "@/lib/api";
 //   - duplicate inventory items (same name)
 //   - every recipe ingredient line: which InventoryItem it links to, that
 //     item's current stock, unit, and whether it is active/archived.
-export async function GET() {
+async function GET__handler() {
   try {
     await requireAdmin();
 
@@ -65,3 +66,6 @@ export async function GET() {
     return serverError(e);
   }
 }
+
+// --- dev-only request timing (see src/lib/perf.ts) ---
+export const GET = withRouteTiming("GET", "/api/diagnostics/prep", GET__handler);

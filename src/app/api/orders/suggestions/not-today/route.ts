@@ -1,3 +1,4 @@
+import { withRouteTiming } from "@/lib/perf";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
@@ -15,7 +16,7 @@ function recommendationDate() {
   return d;
 }
 
-export async function POST(req: Request) {
+async function POST__handler(req: Request) {
   try {
     const user = await requireManager();
     const parsed = schema.safeParse(await req.json());
@@ -44,3 +45,6 @@ export async function POST(req: Request) {
     return ok({ ok: true });
   } catch (e) { return serverError(e); }
 }
+
+// --- dev-only request timing (see src/lib/perf.ts) ---
+export const POST = withRouteTiming("POST", "/api/orders/suggestions/not-today", POST__handler);

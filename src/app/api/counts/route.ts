@@ -1,3 +1,4 @@
+import { withRouteTiming } from "@/lib/perf";
 // Always render fresh from the DB — never serve cached/stale data.
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -6,7 +7,7 @@ import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ok, created, serverError } from "@/lib/api";
 
-export async function GET(req: Request) {
+async function GET__handler(req: Request) {
   try {
     await requireUser();
     const sp = new URL(req.url).searchParams;
@@ -37,7 +38,7 @@ export async function GET(req: Request) {
 }
 
 // Create or fetch today's draft for the current user
-export async function POST(req: Request) {
+async function POST__handler(req: Request) {
   try {
     const user = await requireUser();
     const body = await req.json().catch(() => ({}));
@@ -51,3 +52,7 @@ export async function POST(req: Request) {
     return created(count);
   } catch (e) { return serverError(e); }
 }
+
+// --- dev-only request timing (see src/lib/perf.ts) ---
+export const GET = withRouteTiming("GET", "/api/counts", GET__handler);
+export const POST = withRouteTiming("POST", "/api/counts", POST__handler);

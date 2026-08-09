@@ -1,3 +1,4 @@
+import { withRouteTiming } from "@/lib/perf";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
@@ -8,7 +9,7 @@ import { suggestMatches } from "@/lib/sales";
 
 // Unmapped sales lines plus best-guess inventory item suggestions, for the
 // manual product-mapping screen.
-export async function GET() {
+async function GET__handler() {
   try {
     await requireManager();
     const lines = await prisma.salesLine.findMany({
@@ -22,3 +23,6 @@ export async function GET() {
     return ok(out);
   } catch (e) { return serverError(e); }
 }
+
+// --- dev-only request timing (see src/lib/perf.ts) ---
+export const GET = withRouteTiming("GET", "/api/sales/unmapped", GET__handler);

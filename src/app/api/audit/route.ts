@@ -1,10 +1,11 @@
+import { withRouteTiming } from "@/lib/perf";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ok, serverError } from "@/lib/api";
 
 // Audit log query with filters. Admin only.
 // Filters: userId, action (CREATE/UPDATE/DELETE), entity, from, to (ISO dates).
-export async function GET(req: Request) {
+async function GET__handler(req: Request) {
   try {
     await requireAdmin();
     const sp = new URL(req.url).searchParams;
@@ -39,3 +40,6 @@ export async function GET(req: Request) {
     return serverError(e);
   }
 }
+
+// --- dev-only request timing (see src/lib/perf.ts) ---
+export const GET = withRouteTiming("GET", "/api/audit", GET__handler);

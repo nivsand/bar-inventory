@@ -1,5 +1,6 @@
 import "./globals.css";
 import type { Metadata, Viewport } from "next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Providers } from "@/components/Providers";
 import { PWARegister } from "@/components/PWARegister";
 import { getSession } from "@/lib/auth";
@@ -36,6 +37,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body>
         <Providers initialLocale={locale}>{children}</Providers>
         <PWARegister />
+        <SpeedInsights />
       </body>
     </html>
   );

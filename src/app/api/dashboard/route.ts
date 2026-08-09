@@ -1,3 +1,4 @@
+import { withRouteTiming } from "@/lib/perf";
 // Always render fresh from the DB — never serve cached/stale data.
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -7,7 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { ok, serverError } from "@/lib/api";
 import { startOfDay, endOfDay } from "date-fns";
 
-export async function GET() {
+async function GET__handler() {
   try {
     const user = await requireUser();
     const manager = isManager(user.role);
@@ -71,3 +72,6 @@ export async function GET() {
     return serverError(e);
   }
 }
+
+// --- dev-only request timing (see src/lib/perf.ts) ---
+export const GET = withRouteTiming("GET", "/api/dashboard", GET__handler);

@@ -1,3 +1,4 @@
+import { withRouteTiming } from "@/lib/perf";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
@@ -9,7 +10,7 @@ import { ok, created, serverError, badRequest } from "@/lib/api";
 import { parseTabularSales, normalizeProductName } from "@/lib/sales";
 import { recomputeWeeklySales } from "@/server/sales";
 
-export async function GET() {
+async function GET__handler() {
   try {
     await requireManager();
     const uploads = await prisma.salesUpload.findMany({
@@ -21,7 +22,7 @@ export async function GET() {
   } catch (e) { return serverError(e); }
 }
 
-export async function POST(req: Request) {
+async function POST__handler(req: Request) {
   try {
     const user = await requireManager();
     const form = await req.formData();
@@ -86,3 +87,7 @@ export async function POST(req: Request) {
     return created(result);
   } catch (e) { return serverError(e); }
 }
+
+// --- dev-only request timing (see src/lib/perf.ts) ---
+export const GET = withRouteTiming("GET", "/api/sales/uploads", GET__handler);
+export const POST = withRouteTiming("POST", "/api/sales/uploads", POST__handler);

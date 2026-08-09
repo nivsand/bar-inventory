@@ -1,3 +1,4 @@
+import { withRouteTiming } from "@/lib/perf";
 import { requireManager } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ok, serverError, badRequest } from "@/lib/api";
@@ -11,7 +12,7 @@ const schema = z.object({
 });
 
 // Bulk supplier operations. Manager/Admin only.
-export async function POST(req: Request) {
+async function POST__handler(req: Request) {
   try {
     const user = await requireManager();
     const { action, ids } = schema.parse(await req.json());
@@ -29,3 +30,6 @@ export async function POST(req: Request) {
     return serverError(e);
   }
 }
+
+// --- dev-only request timing (see src/lib/perf.ts) ---
+export const POST = withRouteTiming("POST", "/api/suppliers/bulk", POST__handler);

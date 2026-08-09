@@ -1,3 +1,4 @@
+import { withRouteTiming } from "@/lib/perf";
 // Always render fresh from the DB — never serve cached/stale data.
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -16,7 +17,7 @@ const round = (n: number) => Math.round(n * 1000) / 1000;
 // excluded). Ingredients whose linked inventory item is archived/inactive are
 // flagged so a wrong/stale recipe link is visible instead of silently using a
 // different item's stock.
-export async function GET() {
+async function GET__handler() {
   try {
     await requireUser();
 
@@ -103,3 +104,6 @@ export async function GET() {
     return serverError(e);
   }
 }
+
+// --- dev-only request timing (see src/lib/perf.ts) ---
+export const GET = withRouteTiming("GET", "/api/prep/suggestions", GET__handler);

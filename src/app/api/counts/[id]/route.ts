@@ -1,3 +1,4 @@
+import { withRouteTiming } from "@/lib/perf";
 // Always render fresh from the DB — never serve cached/stale data.
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -9,7 +10,7 @@ import { ok, serverError, notFound } from "@/lib/api";
 // Full detail of a single daily count for the review screen. Manager/Admin only.
 // Returns the counter, timestamps, status, and every entry with its item
 // (name, unit, area) + counted quantity + note.
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+async function GET__handler(_req: Request, { params }: { params: { id: string } }) {
   try {
     await requireManager();
     const count = await prisma.dailyCount.findUnique({
@@ -30,3 +31,6 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     return serverError(e);
   }
 }
+
+// --- dev-only request timing (see src/lib/perf.ts) ---
+export const GET = withRouteTiming("GET", "/api/counts/[id]", GET__handler);

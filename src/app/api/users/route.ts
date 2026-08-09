@@ -1,3 +1,4 @@
+import { withRouteTiming } from "@/lib/perf";
 import { requireManager } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ok, created, serverError, forbidden, badRequest } from "@/lib/api";
@@ -7,7 +8,7 @@ import { MIN_PASSWORD_LENGTH } from "@/lib/password";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 
-export async function GET() {
+async function GET__handler() {
   try {
     await requireManager();
     return ok(
@@ -30,7 +31,7 @@ const schema = z.object({
   area: z.enum(["KITCHEN", "FLOOR"]).nullable().optional(),
 });
 
-export async function POST(req: Request) {
+async function POST__handler(req: Request) {
   try {
     // Must be at least a manager to create users.
     const actor = await requireManager();
@@ -54,3 +55,7 @@ export async function POST(req: Request) {
     return serverError(e);
   }
 }
+
+// --- dev-only request timing (see src/lib/perf.ts) ---
+export const GET = withRouteTiming("GET", "/api/users", GET__handler);
+export const POST = withRouteTiming("POST", "/api/users", POST__handler);

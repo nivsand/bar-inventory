@@ -1,3 +1,4 @@
+import { withRouteTiming } from "@/lib/perf";
 import { requireManager } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ok, serverError, notFound } from "@/lib/api";
@@ -7,7 +8,7 @@ import { logAudit } from "@/server/audit";
 // Delete a waste entry. Manager/Admin only (requireManager enforces RBAC).
 // Reverses the stock deduction the entry originally made so inventory stays
 // correct, and records the deletion in the audit trail.
-export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+async function DELETE__handler(_req: Request, { params }: { params: { id: string } }) {
   try {
     const user = await requireManager();
     const entry = await prisma.wasteEntry.findUnique({ where: { id: params.id }, include: { item: true } });
@@ -44,3 +45,6 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
     return serverError(e);
   }
 }
+
+// --- dev-only request timing (see src/lib/perf.ts) ---
+export const DELETE = withRouteTiming("DELETE", "/api/waste/[id]", DELETE__handler);

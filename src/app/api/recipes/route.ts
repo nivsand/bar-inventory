@@ -1,3 +1,4 @@
+import { withRouteTiming } from "@/lib/perf";
 // Always render fresh from the DB — never serve cached/stale data.
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -9,7 +10,7 @@ import { logAudit } from "@/server/audit";
 import { z } from "zod";
 
 // List every (active) prep item with its recipe + ingredient lines.
-export async function GET() {
+async function GET__handler() {
   try {
     await requireUser();
     const prepItems = await prisma.prepItem.findMany({
@@ -45,7 +46,7 @@ const schema = z.object({
   })).default([]),
 });
 
-export async function POST(req: Request) {
+async function POST__handler(req: Request) {
   try {
     const user = await requireManager();
     const data = schema.parse(await req.json());
@@ -83,3 +84,7 @@ export async function POST(req: Request) {
     return serverError(e);
   }
 }
+
+// --- dev-only request timing (see src/lib/perf.ts) ---
+export const GET = withRouteTiming("GET", "/api/recipes", GET__handler);
+export const POST = withRouteTiming("POST", "/api/recipes", POST__handler);

@@ -1,3 +1,4 @@
+import { withRouteTiming } from "@/lib/perf";
 import { requireManager, requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ok, serverError, badRequest } from "@/lib/api";
@@ -38,7 +39,7 @@ const patchSchema = z.object({
   isActive: z.boolean().optional(), // used by archive restore
 }).strip();
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+async function PATCH__handler(req: Request, { params }: { params: { id: string } }) {
   try {
     const user = await requireManager();
     const parsed = patchSchema.safeParse(await req.json());
@@ -58,7 +59,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 //  - default: Manager/Admin archive-or-delete (hard delete only if no history).
 //  - ?hard=1: ADMIN-only PERMANENT delete. If the item is referenced by other
 //    records, return a clear 400 instead of crashing with a raw FK error.
-export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+async function DELETE__handler(req: Request, { params }: { params: { id: string } }) {
   try {
     const hard = new URL(req.url).searchParams.get("hard") === "1";
 
@@ -88,3 +89,7 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
     return ok({ ok: true, result });
   } catch (e) { return serverError(e); }
 }
+
+// --- dev-only request timing (see src/lib/perf.ts) ---
+export const PATCH = withRouteTiming("PATCH", "/api/inventory/[id]", PATCH__handler);
+export const DELETE = withRouteTiming("DELETE", "/api/inventory/[id]", DELETE__handler);

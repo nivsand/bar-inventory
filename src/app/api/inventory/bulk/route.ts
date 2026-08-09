@@ -1,3 +1,4 @@
+import { withRouteTiming } from "@/lib/perf";
 import { requireManager, requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ok, serverError, badRequest } from "@/lib/api";
@@ -15,7 +16,7 @@ const schema = z.object({
 //  - permanentDelete: ADMIN only. Tries to hard-delete each item; returns a
 //    summary of deleted vs failed (with item name + reason). Never crashes.
 //  - archive / restore / category: Manager/Admin.
-export async function POST(req: Request) {
+async function POST__handler(req: Request) {
   try {
     const { action, ids, categoryId } = schema.parse(await req.json());
 
@@ -67,3 +68,6 @@ export async function POST(req: Request) {
     return serverError(e);
   }
 }
+
+// --- dev-only request timing (see src/lib/perf.ts) ---
+export const POST = withRouteTiming("POST", "/api/inventory/bulk", POST__handler);

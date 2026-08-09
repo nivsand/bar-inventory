@@ -1,3 +1,4 @@
+import { withRouteTiming } from "@/lib/perf";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ok, serverError, badRequest } from "@/lib/api";
@@ -8,7 +9,7 @@ import bcrypt from "bcryptjs";
 // Self-service: a logged-in user changes their OWN password.
 // Requires the current password and a valid new password. Never returns or
 // stores plaintext; uses the same bcrypt hashing as login/seed.
-export async function POST(req: Request) {
+async function POST__handler(req: Request) {
   try {
     const session = await requireUser();
     const { currentPassword, newPassword } = await req.json();
@@ -30,3 +31,6 @@ export async function POST(req: Request) {
     return serverError(e);
   }
 }
+
+// --- dev-only request timing (see src/lib/perf.ts) ---
+export const POST = withRouteTiming("POST", "/api/me/password", POST__handler);

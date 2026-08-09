@@ -1,3 +1,4 @@
+import { withRouteTiming } from "@/lib/perf";
 import { requireUser, requireManager } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ok, created, serverError, badRequest } from "@/lib/api";
@@ -5,7 +6,7 @@ import { logAudit } from "@/server/audit";
 import { computeCycleStart } from "@/server/engines/ordering";
 import { calculateOrderValue, compareOrdersByStatusThenDate } from "@/lib/orders";
 
-export async function GET() {
+async function GET__handler() {
   try {
     await requireUser();
     const orders = await prisma.order.findMany({
@@ -22,7 +23,7 @@ export async function GET() {
   } catch (e) { return serverError(e); }
 }
 
-export async function POST(req: Request) {
+async function POST__handler(req: Request) {
   try {
     const user = await requireManager();
     const { supplierId, items, channel } = await req.json();
@@ -61,3 +62,7 @@ export async function POST(req: Request) {
     return created(order);
   } catch (e) { return serverError(e); }
 }
+
+// --- dev-only request timing (see src/lib/perf.ts) ---
+export const GET = withRouteTiming("GET", "/api/orders", GET__handler);
+export const POST = withRouteTiming("POST", "/api/orders", POST__handler);

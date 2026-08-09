@@ -1,9 +1,10 @@
+import { withRouteTiming } from "@/lib/perf";
 import { requireManager } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ok, serverError, badRequest } from "@/lib/api";
 import { logAudit } from "@/server/audit";
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+async function PATCH__handler(req: Request, { params }: { params: { id: string } }) {
   try {
     const user = await requireManager();
     const body = await req.json(); // { status?, messageBody?, notes?, items?:[{id,orderedQty}], addItems?:[{itemId,orderedQty}] }
@@ -66,7 +67,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 // been sent, hard-deleting it would silently free up its supplier's order
 // cycle for a duplicate order, so it's cancelled instead: status becomes
 // CANCELLED, the row (and its history) stays for the record.
-export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+async function DELETE__handler(_req: Request, { params }: { params: { id: string } }) {
   try {
     const user = await requireManager();
     const order = await prisma.order.findUniqueOrThrow({ where: { id: params.id } });
@@ -83,3 +84,7 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
     return ok({ ok: true, cancelled: true });
   } catch (e) { return serverError(e); }
 }
+
+// --- dev-only request timing (see src/lib/perf.ts) ---
+export const PATCH = withRouteTiming("PATCH", "/api/orders/[id]", PATCH__handler);
+export const DELETE = withRouteTiming("DELETE", "/api/orders/[id]", DELETE__handler);

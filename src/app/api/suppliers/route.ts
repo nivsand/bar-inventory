@@ -1,10 +1,11 @@
+import { withRouteTiming } from "@/lib/perf";
 import { requireUser, requireManager } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ok, created, serverError } from "@/lib/api";
 import { logAudit } from "@/server/audit";
 import { z } from "zod";
 
-export async function GET(req: Request) {
+async function GET__handler(req: Request) {
   try {
     await requireUser();
     const archived = new URL(req.url).searchParams.get("archived") === "1";
@@ -28,7 +29,7 @@ const schema = z.object({
   notes: z.string().nullable().optional(),
 });
 
-export async function POST(req: Request) {
+async function POST__handler(req: Request) {
   try {
     const user = await requireManager();
     const data = schema.parse(await req.json());
@@ -37,3 +38,7 @@ export async function POST(req: Request) {
     return created(s);
   } catch (e) { return serverError(e); }
 }
+
+// --- dev-only request timing (see src/lib/perf.ts) ---
+export const GET = withRouteTiming("GET", "/api/suppliers", GET__handler);
+export const POST = withRouteTiming("POST", "/api/suppliers", POST__handler);

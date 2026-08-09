@@ -1,3 +1,4 @@
+import { withRouteTiming } from "@/lib/perf";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ok, serverError, badRequest } from "@/lib/api";
@@ -5,7 +6,7 @@ import { getOcrProvider, matchItem } from "@/server/ocr";
 
 // OCR extraction only — returns extracted items for an editable review table.
 // Available to any authenticated user; it never writes to inventory.
-export async function POST(req: Request) {
+async function POST__handler(req: Request) {
   try {
     await requireUser();
     const form = await req.formData();
@@ -27,3 +28,6 @@ export async function POST(req: Request) {
     return ok({ provider: provider.name, extracted: { ...extracted, items: reviewItems } });
   } catch (e) { return serverError(e); }
 }
+
+// --- dev-only request timing (see src/lib/perf.ts) ---
+export const POST = withRouteTiming("POST", "/api/deliveries/ocr", POST__handler);

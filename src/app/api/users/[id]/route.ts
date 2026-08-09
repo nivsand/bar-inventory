@@ -1,3 +1,4 @@
+import { withRouteTiming } from "@/lib/perf";
 import { requireManager, requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ok, serverError, forbidden, badRequest, notFound } from "@/lib/api";
@@ -18,7 +19,7 @@ const patchSchema = z.object({
 });
 
 // Edit / deactivate a user.
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+async function PATCH__handler(req: Request, { params }: { params: { id: string } }) {
   try {
     const actor = await requireManager();
     const body = patchSchema.parse(await req.json());
@@ -65,7 +66,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
 // Delete a user. Admin only. Falls back to deactivation if the user has history
 // (foreign-key references), so admins always have a safe way to remove access.
-export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+async function DELETE__handler(_req: Request, { params }: { params: { id: string } }) {
   try {
     const actor = await requireAdmin();
     if (actor.id === params.id) return badRequest("You cannot delete yourself");
@@ -89,3 +90,7 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
     return serverError(e);
   }
 }
+
+// --- dev-only request timing (see src/lib/perf.ts) ---
+export const PATCH = withRouteTiming("PATCH", "/api/users/[id]", PATCH__handler);
+export const DELETE = withRouteTiming("DELETE", "/api/users/[id]", DELETE__handler);

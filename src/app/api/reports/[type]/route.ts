@@ -1,3 +1,4 @@
+import { withRouteTiming } from "@/lib/perf";
 import { requireManager } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ok, serverError, badRequest } from "@/lib/api";
@@ -9,7 +10,7 @@ function toCsv(rows: Record<string, any>[]): string {
   return [headers.join(","), ...rows.map((r) => headers.map((h) => esc(r[h])).join(","))].join("\n");
 }
 
-export async function GET(req: Request, { params }: { params: { type: string } }) {
+async function GET__handler(req: Request, { params }: { params: { type: string } }) {
   try {
     await requireManager();
     const { searchParams } = new URL(req.url);
@@ -116,3 +117,6 @@ export async function GET(req: Request, { params }: { params: { type: string } }
     });
   } catch (e) { return serverError(e); }
 }
+
+// --- dev-only request timing (see src/lib/perf.ts) ---
+export const GET = withRouteTiming("GET", "/api/reports/[type]", GET__handler);

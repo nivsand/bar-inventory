@@ -1,3 +1,4 @@
+import { withRouteTiming } from "@/lib/perf";
 import { requireManager } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ok, serverError, badRequest, notFound } from "@/lib/api";
@@ -15,7 +16,7 @@ const schema = z.object({
   })).optional(),
 });
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+async function PATCH__handler(req: Request, { params }: { params: { id: string } }) {
   try {
     const user = await requireManager();
     const body = schema.parse(await req.json());
@@ -61,7 +62,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 // If the prep product has history (counts, adjustments, prep tasks, used as an
 // ingredient elsewhere, orders/deliveries/waste), soft-archive it; otherwise
 // hard-delete the recipe + prep item + underlying inventory item.
-export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+async function DELETE__handler(_req: Request, { params }: { params: { id: string } }) {
   try {
     const user = await requireManager();
     const prep = await prisma.prepItem.findUnique({ where: { id: params.id }, include: { item: true } });
@@ -98,3 +99,7 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
     return serverError(e);
   }
 }
+
+// --- dev-only request timing (see src/lib/perf.ts) ---
+export const PATCH = withRouteTiming("PATCH", "/api/recipes/[id]", PATCH__handler);
+export const DELETE = withRouteTiming("DELETE", "/api/recipes/[id]", DELETE__handler);

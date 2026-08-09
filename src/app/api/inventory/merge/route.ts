@@ -1,3 +1,4 @@
+import { withRouteTiming } from "@/lib/perf";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ok, serverError, badRequest } from "@/lib/api";
@@ -13,7 +14,7 @@ const schema = z.object({
 // Admin-only "force cleanup duplicates": re-link recipe/menu lines from the
 // duplicate items to the chosen target, then archive the duplicates. History is
 // never deleted.
-export async function POST(req: Request) {
+async function POST__handler(req: Request) {
   try {
     const user = await requireAdmin();
     const { targetId, duplicateIds } = schema.parse(await req.json());
@@ -30,3 +31,6 @@ export async function POST(req: Request) {
     return serverError(e);
   }
 }
+
+// --- dev-only request timing (see src/lib/perf.ts) ---
+export const POST = withRouteTiming("POST", "/api/inventory/merge", POST__handler);

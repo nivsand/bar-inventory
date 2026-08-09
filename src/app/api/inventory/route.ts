@@ -1,3 +1,4 @@
+import { withRouteTiming } from "@/lib/perf";
 // Always render fresh from the DB — never serve cached/stale data.
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -8,7 +9,7 @@ import { ok, created, serverError } from "@/lib/api";
 import { logAudit } from "@/server/audit";
 import { z } from "zod";
 
-export async function GET(req: Request) {
+async function GET__handler(req: Request) {
   try {
     await requireUser();
     const { searchParams } = new URL(req.url);
@@ -63,7 +64,7 @@ const schema = z.object({
   notes: z.string().nullable().optional(),
 });
 
-export async function POST(req: Request) {
+async function POST__handler(req: Request) {
   try {
     const user = await requireManager();
     const data = schema.parse(await req.json());
@@ -72,3 +73,7 @@ export async function POST(req: Request) {
     return created(item);
   } catch (e) { return serverError(e); }
 }
+
+// --- dev-only request timing (see src/lib/perf.ts) ---
+export const GET = withRouteTiming("GET", "/api/inventory", GET__handler);
+export const POST = withRouteTiming("POST", "/api/inventory", POST__handler);

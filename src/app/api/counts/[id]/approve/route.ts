@@ -1,10 +1,11 @@
+import { withRouteTiming } from "@/lib/perf";
 import { requireManager } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ok, serverError, badRequest } from "@/lib/api";
 import { setBatchAbsoluteStock } from "@/server/stock";
 import { logAudit } from "@/server/audit";
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+async function POST__handler(req: Request, { params }: { params: { id: string } }) {
   try {
     const user = await requireManager();
     const { action } = await req.json(); // "APPROVE" | "REJECT" | "RECOUNT"
@@ -32,3 +33,6 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     return ok({ ok: true });
   } catch (e) { return serverError(e); }
 }
+
+// --- dev-only request timing (see src/lib/perf.ts) ---
+export const POST = withRouteTiming("POST", "/api/counts/[id]/approve", POST__handler);

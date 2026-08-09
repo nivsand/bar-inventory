@@ -1,3 +1,4 @@
+import { withRouteTiming } from "@/lib/perf";
 // Always render fresh from the DB — never serve cached/stale data.
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -8,7 +9,7 @@ import { ok, created, serverError, badRequest } from "@/lib/api";
 
 // GET: list prep tasks. The ingredient breakdown for each open task is computed
 // LIVE from the latest recipe + current inventory (never a stored snapshot).
-export async function GET() {
+async function GET__handler() {
   try {
     await requireUser();
     const tasks = await prisma.prepTask.findMany({
@@ -45,7 +46,7 @@ export async function GET() {
 
 // POST: create a prep task (manager/admin only). Stores only the target qty —
 // the ingredient list is always derived live from the recipe, not snapshotted.
-export async function POST(req: Request) {
+async function POST__handler(req: Request) {
   try {
     await requireManager();
     const body = await req.json();
@@ -67,3 +68,7 @@ export async function POST(req: Request) {
 }
 
 function round(n: number) { return Math.round(n * 1000) / 1000; }
+
+// --- dev-only request timing (see src/lib/perf.ts) ---
+export const GET = withRouteTiming("GET", "/api/prep/tasks", GET__handler);
+export const POST = withRouteTiming("POST", "/api/prep/tasks", POST__handler);

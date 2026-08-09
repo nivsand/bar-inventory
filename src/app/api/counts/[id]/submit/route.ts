@@ -1,3 +1,4 @@
+import { withRouteTiming } from "@/lib/perf";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ok, serverError, badRequest } from "@/lib/api";
@@ -15,7 +16,7 @@ const schema = z.object({
   notes: z.string().nullable().optional(),
 });
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+async function POST__handler(req: Request, { params }: { params: { id: string } }) {
   try {
     const user = await requireUser();
     const parsed = schema.safeParse(await req.json());
@@ -64,3 +65,6 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     return serverError(e);
   }
 }
+
+// --- dev-only request timing (see src/lib/perf.ts) ---
+export const POST = withRouteTiming("POST", "/api/counts/[id]/submit", POST__handler);

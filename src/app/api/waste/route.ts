@@ -1,16 +1,17 @@
+import { withRouteTiming } from "@/lib/perf";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ok, created, serverError } from "@/lib/api";
 import { applyAdjustment } from "@/server/stock";
 
-export async function GET() {
+async function GET__handler() {
   try {
     await requireUser();
     return ok(await prisma.wasteEntry.findMany({ include: { item: true, user: true }, orderBy: { createdAt: "desc" }, take: 200 }));
   } catch (e) { return serverError(e); }
 }
 
-export async function POST(req: Request) {
+async function POST__handler(req: Request) {
   try {
     const user = await requireUser();
     const { itemId, qty, unit, reason, note } = await req.json();
@@ -22,3 +23,7 @@ export async function POST(req: Request) {
     return created(entry);
   } catch (e) { return serverError(e); }
 }
+
+// --- dev-only request timing (see src/lib/perf.ts) ---
+export const GET = withRouteTiming("GET", "/api/waste", GET__handler);
+export const POST = withRouteTiming("POST", "/api/waste", POST__handler);

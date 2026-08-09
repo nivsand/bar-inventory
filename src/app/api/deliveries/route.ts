@@ -1,10 +1,11 @@
+import { withRouteTiming } from "@/lib/perf";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ok, created, serverError, badRequest } from "@/lib/api";
 import { logAudit } from "@/server/audit";
 import { z } from "zod";
 
-export async function GET() {
+async function GET__handler() {
   try {
     await requireUser();
     const deliveries = await prisma.delivery.findMany({
@@ -47,7 +48,7 @@ const schema = z.object({
 // Create a received-goods REPORT. Any authenticated user (incl. employees) can
 // submit one. This NEVER updates inventory — a manager/admin must approve first
 // (see /api/deliveries/[id]/approve).
-export async function POST(req: Request) {
+async function POST__handler(req: Request) {
   try {
     const user = await requireUser();
     const parsed = schema.safeParse(await req.json());
@@ -86,3 +87,7 @@ export async function POST(req: Request) {
     return serverError(e);
   }
 }
+
+// --- dev-only request timing (see src/lib/perf.ts) ---
+export const GET = withRouteTiming("GET", "/api/deliveries", GET__handler);
+export const POST = withRouteTiming("POST", "/api/deliveries", POST__handler);

@@ -1,3 +1,4 @@
+import { withRouteTiming } from "@/lib/perf";
 import { requireManager } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { badRequest, ok, serverError } from "@/lib/api";
@@ -23,7 +24,7 @@ const patchSchema = z.object({
   isActive: z.boolean().optional(),
 }).strip();
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+async function PATCH__handler(req: Request, { params }: { params: { id: string } }) {
   try {
     const user = await requireManager();
     const parsed = patchSchema.safeParse(await req.json());
@@ -38,7 +39,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 }
 // Delete a supplier. Manager/Admin only. Hard-deletes only when it has no items
 // or orders; otherwise soft-archives it.
-export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+async function DELETE__handler(_req: Request, { params }: { params: { id: string } }) {
   try {
     const user = await requireManager();
     const result = await deleteOrArchiveSupplier(params.id, user.id);
@@ -49,3 +50,7 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
     return ok({ ok: true, result });
   } catch (e) { return serverError(e); }
 }
+
+// --- dev-only request timing (see src/lib/perf.ts) ---
+export const PATCH = withRouteTiming("PATCH", "/api/suppliers/[id]", PATCH__handler);
+export const DELETE = withRouteTiming("DELETE", "/api/suppliers/[id]", DELETE__handler);

@@ -1,3 +1,4 @@
+import { withRouteTiming } from "@/lib/perf";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
@@ -14,7 +15,7 @@ function startOfToday() {
   return d;
 }
 
-export async function GET() {
+async function GET__handler() {
   try {
     await requireManager();
     const today = new Date();
@@ -97,3 +98,6 @@ export async function GET() {
     return ok({ bySupplier, noSupplier, prepDemandConsidered: extraDemand.size });
   } catch (e) { return serverError(e); }
 }
+
+// --- dev-only request timing (see src/lib/perf.ts) ---
+export const GET = withRouteTiming("GET", "/api/orders/suggestions", GET__handler);

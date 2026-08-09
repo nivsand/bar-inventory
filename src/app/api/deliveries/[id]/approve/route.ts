@@ -1,3 +1,4 @@
+import { withRouteTiming } from "@/lib/perf";
 import { requireManager } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ok, serverError, badRequest } from "@/lib/api";
@@ -8,7 +9,7 @@ import { logAudit } from "@/server/audit";
 //  - APPROVE: applies received quantities to inventory (the only place a
 //    delivery touches stock) and advances any linked order.
 //  - REJECT: marks the report rejected; inventory is untouched.
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+async function POST__handler(req: Request, { params }: { params: { id: string } }) {
   try {
     const user = await requireManager();
     const { action } = await req.json(); // "APPROVE" | "REJECT"
@@ -57,3 +58,6 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     return serverError(e);
   }
 }
+
+// --- dev-only request timing (see src/lib/perf.ts) ---
+export const POST = withRouteTiming("POST", "/api/deliveries/[id]/approve", POST__handler);
