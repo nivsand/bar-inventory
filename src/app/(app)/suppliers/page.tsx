@@ -37,7 +37,7 @@ export default function SuppliersPage() {
 
   async function save() {
     const body = { ...editing, leadTimeDays: Number(editing.leadTimeDays),
-      minOrderAmount: editing.minOrderAmount ? Number(editing.minOrderAmount) : null };
+      minOrderAmount: editing.minOrderAmount === "" || editing.minOrderAmount == null ? null : Number(editing.minOrderAmount) };
     if (editing.id) await api(`/api/suppliers/${editing.id}`, { method: "PATCH", body: JSON.stringify(body) });
     else await api("/api/suppliers", { method: "POST", body: JSON.stringify(body) });
     setEditing(null); load();
@@ -120,7 +120,7 @@ export default function SuppliersPage() {
               <div className="flex items-center gap-2"><Package className="h-3.5 w-3.5 text-gray-400 flex-none" />{s.orderingMethod} {s.orderCutoffTime && `· ${s.orderCutoffTime}`}</div>
               <div className="flex items-center gap-2"><CalendarClock className="h-3.5 w-3.5 text-gray-400 flex-none" />{t("orders")}: {fmtDays(s.orderDeadlineDays, locale) || "—"}</div>
               <div className="flex items-center gap-2"><TruckIcon className="h-3.5 w-3.5 text-gray-400 flex-none" />{t("deliveries")}: {fmtDays(s.deliveryDays, locale) || "—"}</div>
-              {s.minOrderNote && <div className="flex items-center gap-2"><Wallet className="h-3.5 w-3.5 text-gray-400 flex-none" />{s.minOrderNote}</div>}
+              <div className="flex items-center gap-2"><Wallet className="h-3.5 w-3.5 text-gray-400 flex-none" />{t("minimumOrderAmount")}: {s.minOrderAmount ?? "—"}{s.minOrderNote ? ` · ${s.minOrderNote}` : ""}</div>
             </div>
           </Card>
         ))}
@@ -144,6 +144,7 @@ export default function SuppliersPage() {
               </Field>
               <Field label="Cutoff time"><Input value={editing.orderCutoffTime || ""} placeholder="20:00" onChange={(e) => setEditing({ ...editing, orderCutoffTime: e.target.value })} /></Field>
               <Field label="Lead time (days)"><Input type="number" value={editing.leadTimeDays} onChange={(e) => setEditing({ ...editing, leadTimeDays: e.target.value })} /></Field>
+              <Field label={t("minimumOrderAmount")}><Input type="number" value={editing.minOrderAmount ?? ""} onChange={(e) => setEditing({ ...editing, minOrderAmount: e.target.value })} /></Field>
               <Field label="Min order note"><Input value={editing.minOrderNote || ""} onChange={(e) => setEditing({ ...editing, minOrderNote: e.target.value })} /></Field>
             </div>
             <div>

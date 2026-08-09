@@ -20,6 +20,7 @@ export type OrderingItemInput = {
   minQty: number;
   parQty: number;
   avgDailyUsage: number;
+  purchasePrice?: number | null;
   packSize?: number | null;
   orderMultiple?: number | null;
   // Ordering unit (e.g. a "box" containing 10 cakes)
@@ -48,6 +49,7 @@ export type OrderSuggestion = {
   minQty: number;
   parQty: number;
   suggestedQty: number;            // in base units (after rounding to order unit)
+  purchasePrice: number;
   // Order-unit breakdown (e.g. 1 box of 10)
   orderUnitQty: number | null;     // how many order units to buy
   unitsPerOrderUnit: number | null;
@@ -60,6 +62,11 @@ export type OrderSuggestion = {
   projectedAtDelivery: number;
   reasonKey: ReasonKey;
   reason: string; // human readable (English; UI can localize via reasonKey)
+};
+
+export type MinimumOrderSuggestion = OrderSuggestion & {
+  estimatedLineValue: number;
+  daysUntilMin: number | null;
 };
 
 export type ReasonKey =
@@ -153,6 +160,7 @@ export function suggestForItem(
     itemId: item.id,
     nameHe: item.nameHe, nameEn: item.nameEn, unit: item.unit,
     currentQty: item.currentQty, minQty: item.minQty, parQty: item.parQty,
+    purchasePrice: item.purchasePrice ?? 0,
     suggestedQty: finalQty,
     orderUnitQty,
     unitsPerOrderUnit: upo,
@@ -207,4 +215,59 @@ export function buildSuggestions(
       return s;
     })
     .filter((s) => s.suggestedQty > 0);
+}
+
+/**
+ * Suggest same-supplier top-up items when an order is below the supplier's
+ * minimum. This deliberately reuses the ordering engine inputs and urgency
+ * signals: due items rank first, then items closest to their safety stock based
+ * on avgDailyUsage. Items with no price cannot help reach a value minimum.
+ */
+export function buildMinimumOrderSuggestions(
+  items: OrderingItemInput[],
+  scheduleBySupplier: Map<string, SupplierSchedule>,
+  today: Date,
+  supplierId: string,
+  existingItemIds: Set<string>,
+  extraDemand: Map<string, number> = new Map(),
+  limit = 5
+): MinimumOrderSuggestion[] {
+  return items
+    .filter((it) => it.supplierId === supplierId && !existingItemIds.has(it.id) && (it.purchasePrice ?? 0) > 0)
+    .map((it) => {
+      const extra = extraDemand.get(it.id) ?? 0;
+      const adjusted = { ...it, currentQty: it.currentQty - extra };
+      const sched = scheduleBySupplier.get(supplierId);
+      const suggestion = suggestForItem(adjusted, today, sched);
+      suggestion.currentQty = it.currentQty;
+
+      const avgDailyUsage = Math.max(0, it.avgDailyUsage || 0);
+      const adjustedQty = it.currentQty - extra;
+      const daysUntilMin = avgDailyUsage > 0
+        ? Math.max(0, (adjustedQty - it.minQty) / avgDailyUsage)
+        : null;
+      const soonEnough = daysUntilMin != null && daysUntilMin <= suggestion.daysUntilDelivery + 7;
+      const topUpQty = suggestion.suggestedQty > 0
+        ? suggestion.suggestedQty
+        : roundToPack(Math.max(0, it.parQty - adjustedQty), it);
+
+      if (topUpQty <= 0 || (!soonEnough && suggestion.reasonKey === "OK")) return null;
+
+      return {
+        ...suggestion,
+        suggestedQty: topUpQty,
+        estimatedLineValue: Math.round(topUpQty * suggestion.purchasePrice * 100) / 100,
+        daysUntilMin,
+      };
+    })
+    .filter((s): s is MinimumOrderSuggestion => Boolean(s))
+    .sort((a, b) => {
+      const dueDiff = Number(a.reasonKey === "OK") - Number(b.reasonKey === "OK");
+      if (dueDiff !== 0) return dueDiff;
+      const aDays = a.daysUntilMin ?? Number.POSITIVE_INFINITY;
+      const bDays = b.daysUntilMin ?? Number.POSITIVE_INFINITY;
+      if (aDays !== bDays) return aDays - bDays;
+      return b.estimatedLineValue - a.estimatedLineValue;
+    })
+    .slice(0, limit);
 }

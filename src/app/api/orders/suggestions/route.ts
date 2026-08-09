@@ -1,23 +1,36 @@
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 import { requireManager } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ok, serverError } from "@/lib/api";
-import { buildSuggestions, SupplierSchedule, OrderingItemInput } from "@/server/engines/ordering";
+import { buildMinimumOrderSuggestions, buildSuggestions, SupplierSchedule, OrderingItemInput } from "@/server/engines/ordering";
 import { suggestPrep, aggregateIngredientDemand, PrepInput } from "@/server/engines/prep";
+import { calculateOrderValue } from "@/lib/orders";
+
+function startOfToday() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
 
 export async function GET() {
   try {
     await requireManager();
     const today = new Date();
+    const recommendationDate = startOfToday();
     const dow = today.getDay();
 
     // Run all three independent DB queries in parallel instead of serially.
-    const [suppliers, rawItems, prepItems] = await Promise.all([
+    const [suppliers, rawItems, prepItems, dismissals] = await Promise.all([
       prisma.supplier.findMany({ where: { isActive: true } }),
       prisma.inventoryItem.findMany({ where: { isActive: true, kind: "RAW" }, include: { supplier: true } }),
       prisma.prepItem.findMany({
         include: { item: true, recipe: { include: { ingredients: { include: { item: true } } } } },
       }),
+      prisma.orderRecommendationDismissal.findMany({ where: { recommendationDate }, select: { supplierId: true } }),
     ]);
+    const dismissedSupplierIds = new Set(dismissals.map((d) => d.supplierId));
 
     const scheduleBySupplier = new Map<string, SupplierSchedule>(
       suppliers.map((s) => [s.id, { id: s.id, orderDeadlineDays: s.orderDeadlineDays, deliveryDays: s.deliveryDays, leadTimeDays: s.leadTimeDays }])
@@ -43,6 +56,7 @@ export async function GET() {
     const inputs: OrderingItemInput[] = rawItems.map((i) => ({
       id: i.id, nameHe: i.nameHe, nameEn: i.nameEn, unit: i.unit,
       currentQty: i.currentQty, minQty: i.minQty, parQty: i.parQty, avgDailyUsage: i.avgDailyUsage,
+      purchasePrice: i.purchasePrice,
       packSize: i.packSize, orderMultiple: i.orderMultiple, supplierId: i.supplierId,
       unitsPerOrderUnit: i.unitsPerOrderUnit, orderUnitNameHe: i.orderUnitNameHe, orderUnitNameEn: i.orderUnitNameEn,
       messageUnitHe: i.messageUnitHe, messageUnitEn: i.messageUnitEn, showBaseQuantityInMessage: i.showBaseQuantityInMessage,
@@ -51,19 +65,34 @@ export async function GET() {
     const suggestions = buildSuggestions(inputs, scheduleBySupplier, today, extraDemand);
 
     // Group by supplier. Always include suppliers scheduled today even with no shortages.
+    const itemSupplierById = new Map(rawItems.map((i) => [i.id, i.supplierId]));
     const scheduledTodayIds = new Set(suppliers.filter((s) => s.orderDeadlineDays.includes(dow)).map((s) => s.id));
     const bySupplier = suppliers
       .filter((s) => {
-        const hasItems = suggestions.some((sug) => rawItems.find((r) => r.id === sug.itemId)?.supplierId === s.id);
+        if (dismissedSupplierIds.has(s.id)) return false;
+        const hasItems = suggestions.some((sug) => itemSupplierById.get(sug.itemId) === s.id);
         return hasItems || scheduledTodayIds.has(s.id);
       })
-      .map((s) => ({
-        supplier: s,
-        items: suggestions.filter((sug) => rawItems.find((r) => r.id === sug.itemId)?.supplierId === s.id),
-        scheduledToday: scheduledTodayIds.has(s.id),
-      }));
+      .map((s) => {
+        const items = suggestions.filter((sug) => itemSupplierById.get(sug.itemId) === s.id);
+        const currentOrderValue = calculateOrderValue(items);
+        const supplierMinimum = s.minOrderAmount ?? null;
+        const existingItemIds = new Set(items.map((it) => it.itemId));
+        const topUpSuggestions = supplierMinimum != null && currentOrderValue < supplierMinimum
+          ? buildMinimumOrderSuggestions(inputs, scheduleBySupplier, today, s.id, existingItemIds, extraDemand)
+          : [];
+        return {
+          supplier: s,
+          items,
+          scheduledToday: scheduledTodayIds.has(s.id),
+          currentOrderValue,
+          supplierMinimum,
+          minimumMet: supplierMinimum == null || currentOrderValue >= supplierMinimum,
+          topUpSuggestions,
+        };
+      });
 
-    const noSupplier = suggestions.filter((sug) => !rawItems.find((r) => r.id === sug.itemId)?.supplierId);
+    const noSupplier = suggestions.filter((sug) => !itemSupplierById.get(sug.itemId));
 
     return ok({ bySupplier, noSupplier, prepDemandConsidered: extraDemand.size });
   } catch (e) { return serverError(e); }

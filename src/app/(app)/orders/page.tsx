@@ -6,12 +6,14 @@ import { api } from "@/lib/fetcher";
 import { Card, PageSpinner, Badge, EmptyState } from "@/components/ui";
 import { Plus } from "lucide-react";
 import { computeCycleStart } from "@/server/engines/ordering";
+import { ORDER_STATUS_ORDER, calculateOrderValue, fmtMoney } from "@/lib/orders";
 
 const STATUS_TONE: Record<string, "warn" | "info" | "ok" | "danger" | "neutral"> = {
   NEED_TO_ORDER: "warn", ORDERED: "info",
   ARRIVED: "ok", PARTIALLY_DELIVERED: "warn",
   MISSING_ITEMS: "danger", PROBLEM: "danger", CANCELLED: "neutral",
 };
+const OPEN_ORDER_STATUSES = new Set(["NEED_TO_ORDER", "ORDERED", "PARTIALLY_DELIVERED"]);
 
 type Named = { nameHe?: string | null; nameEn?: string | null };
 type MsgItem = Named & {
@@ -53,6 +55,17 @@ function mapItems(items: any[]): MsgItem[] {
     messageUnitHe: oi.item.messageUnitHe, messageUnitEn: oi.item.messageUnitEn,
     showBaseQuantityInMessage: oi.item.showBaseQuantityInMessage,
   }));
+}
+
+function suggestionOrderValue(group: any, qty: Record<string, number>) {
+  return (group.items || []).reduce((sum: number, item: any) => {
+    const orderedQty = Number(qty[item.itemId] ?? item.suggestedQty ?? 0) || 0;
+    return sum + orderedQty * (Number(item.purchasePrice ?? 0) || 0);
+  }, 0);
+}
+
+function minimumReached(value: number, minimum: number | null | undefined) {
+  return minimum == null || value >= minimum;
 }
 
 export default function OrdersPage() {
@@ -139,6 +152,26 @@ export default function OrdersPage() {
     setAddTo(null); setAddForm({ itemId: "", qty: "" }); load();
   }
 
+  async function notToday(supplierId: string) {
+    await api("/api/orders/suggestions/not-today", { method: "POST", body: JSON.stringify({ supplierId }) });
+    load();
+  }
+
+  function addSuggestedProduct(supplierId: string, item: any) {
+    setSugg((prev: any) => ({
+      ...prev,
+      bySupplier: prev.bySupplier.map((group: any) => {
+        if (group.supplier.id !== supplierId || group.items.some((it: any) => it.itemId === item.itemId)) return group;
+        return {
+          ...group,
+          items: [...group.items, item],
+          topUpSuggestions: (group.topUpSuggestions || []).filter((it: any) => it.itemId !== item.itemId),
+        };
+      }),
+    }));
+    setQty((q) => ({ ...q, [item.itemId]: item.suggestedQty }));
+  }
+
   async function deleteOrder(id: string, isSent: boolean) {
     if (!window.confirm(isSent ? t("confirmCancelOrder") : t("confirmDeleteOrder"))) return;
     try { await api(`/api/orders/${id}`, { method: "DELETE" }); load(); }
@@ -163,10 +196,20 @@ export default function OrdersPage() {
           });
           return <>
             {pending.length === 0 && <Card><EmptyState label={t("noData")} /></Card>}
-            {pending.map((g: any) => (
+            {pending.map((g: any) => {
+              const currentValue = suggestionOrderValue(g, qty);
+              const minAmount = g.supplier.minOrderAmount ?? g.supplierMinimum ?? null;
+              const met = minimumReached(currentValue, minAmount);
+              return (
               <Card key={g.supplier.id}>
                 <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
-                  <h3 className="font-semibold">{name(g.supplier)} <span className="text-gray-400 text-sm">· {g.supplier.orderingMethod}</span></h3>
+                  <div>
+                    <h3 className="font-semibold">{name(g.supplier)} <span className="text-gray-400 text-sm">· {g.supplier.orderingMethod}</span></h3>
+                    <div className={`text-sm font-semibold mt-1 ${met ? "text-emerald-700" : "text-amber-700"}`}>
+                      {fmtMoney(currentValue, locale)} / {minAmount == null ? t("noMinimumOrder") : `${fmtMoney(minAmount, locale)} ${t("minimum")}`}
+                    </div>
+                    {!met && <p className="text-xs text-amber-700 mt-0.5">{t("minimumNotMet")}</p>}
+                  </div>
                   <div className="flex gap-2 flex-wrap items-center">
                     {g.items.length > 0 && isManager && (
                       <>
@@ -174,6 +217,7 @@ export default function OrdersPage() {
                         <button className="btn-primary text-sm" onClick={() => createOrder(g)}>{t("generateOrder")}</button>
                       </>
                     )}
+                    {isManager && <button className="btn-ghost text-sm" onClick={() => notToday(g.supplier.id)}>{t("notToday")}</button>}
                   </div>
                 </div>
                 {g.items.length === 0 ? (
@@ -205,15 +249,36 @@ export default function OrdersPage() {
                     </table>
                   </div>
                 )}
+                {!met && (
+                  <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                    <p className="text-sm font-semibold text-amber-800">{t("additionalSameSupplierSuggestions")}</p>
+                    {(g.topUpSuggestions || []).length === 0 ? (
+                      <p className="text-xs text-amber-700 mt-1">{t("noAdditionalSupplierSuggestions")}</p>
+                    ) : (
+                      <ul className="mt-2 divide-y divide-amber-100 text-sm">
+                        {g.topUpSuggestions.map((it: any) => (
+                          <li key={it.itemId} className="py-2 flex flex-wrap justify-between gap-2 items-center">
+                            <span>
+                              <span className="font-medium">{name(it)}</span>
+                              <span className="text-amber-700 text-xs"> · {it.suggestedQty} {it.unit} · {fmtMoney(it.estimatedLineValue || it.suggestedQty * it.purchasePrice, locale)}</span>
+                            </span>
+                            <button className="btn-ghost text-xs" onClick={() => addSuggestedProduct(g.supplier.id, it)}>{t("add")}</button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
               </Card>
-            ))}
+              );
+            })}
           </>;
         })()}
       </section>
 
       {[
-        { key: "open", labelKey: "openOrders" as const, list: orders.filter((o) => o.status === "NEED_TO_ORDER") },
-        { key: "sent", labelKey: "sentOrders" as const, list: orders.filter((o) => o.status !== "NEED_TO_ORDER") },
+        { key: "open", labelKey: "openOrders" as const, list: orders.filter((o) => OPEN_ORDER_STATUSES.has(o.status)) },
+        { key: "history", labelKey: "history" as const, list: orders.filter((o) => !OPEN_ORDER_STATUSES.has(o.status)) },
       ].map((sectionDef) => (
         <section key={sectionDef.key} className="space-y-3">
           <h2 className="font-semibold text-lg">{t(sectionDef.labelKey)} ({sectionDef.list.length})</h2>
@@ -228,6 +293,9 @@ export default function OrdersPage() {
                   <div>
                     <span className="font-semibold text-gray-900">{name(o.supplier)}</span>
                     <Badge tone={STATUS_TONE[o.status] ?? "neutral"} className="ms-2">{o.status}</Badge>
+                    <div className={`text-sm font-semibold mt-1 ${minimumReached(o.currentOrderValue ?? calculateOrderValue(o.items), o.supplierMinimum ?? o.supplier?.minOrderAmount) ? "text-emerald-700" : "text-amber-700"}`}>
+                      {fmtMoney(o.currentOrderValue ?? calculateOrderValue(o.items), locale)} / {(o.supplierMinimum ?? o.supplier?.minOrderAmount) == null ? t("noMinimumOrder") : fmtMoney(o.supplierMinimum ?? o.supplier.minOrderAmount, locale)}
+                    </div>
                     <p className="text-sm text-gray-400">
                       {new Date(o.createdAt).toLocaleString()} · {o.items.length} {t("item")}
                       {o.createdBy?.name && <> · {o.createdBy.name}</>}
@@ -237,7 +305,7 @@ export default function OrdersPage() {
                   <div className="flex items-center gap-2">
                     {isManager && isOpen && <button className="btn-primary text-sm" onClick={() => markSent(o.id)}>{t("markAsSent")}</button>}
                     <select className="touch-input h-10 w-auto text-sm" value={o.status} onChange={(e) => setStatus(o.id, e.target.value)}>
-                      {Object.keys(STATUS_TONE).map((s) => <option key={s} value={s}>{s}</option>)}
+                      {ORDER_STATUS_ORDER.map((s) => <option key={s} value={s}>{s}</option>)}
                     </select>
                     {isManager && <button className="text-red-600 text-sm" onClick={() => deleteOrder(o.id, !isOpen)}>{isOpen ? t("delete") : t("cancelOrder")}</button>}
                   </div>
@@ -253,7 +321,9 @@ export default function OrdersPage() {
                       <span className="flex flex-wrap gap-2 items-center">
                         <select className="touch-input h-10 w-auto text-sm" value={addForm.itemId} onChange={(e) => setAddForm({ ...addForm, itemId: e.target.value })}>
                           <option value="">—</option>
-                          {inventory.map((i) => <option key={i.id} value={i.id}>{name(i)}</option>)}
+                          {inventory
+                            .filter((i) => i.supplierId === o.supplierId && !o.items.some((oi: any) => oi.itemId === i.id))
+                            .map((i) => <option key={i.id} value={i.id}>{name(i)}</option>)}
                         </select>
                         <input className="touch-input h-10 w-20 text-center" type="number" placeholder={t("quantity")} value={addForm.qty} onChange={(e) => setAddForm({ ...addForm, qty: e.target.value })} />
                         <button className="btn-primary text-sm" onClick={() => addItem(o.id)} disabled={!addForm.itemId || !addForm.qty}>{t("add")}</button>

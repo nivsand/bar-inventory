@@ -8,6 +8,7 @@ import { Plus, Pencil } from "lucide-react";
 
 const blank = { nameHe: "", nameEn: "", unit: "kg", kind: "RAW", area: "KITCHEN", inCount: true,
   categoryId: "", supplierId: "", locationId: "", currentQty: 0, minQty: 0, parQty: 0, avgDailyUsage: 0,
+  purchasePrice: 0,
   orderUnitNameHe: "", orderUnitNameEn: "", unitsPerOrderUnit: "",
   messageUnitHe: "", messageUnitEn: "", showBaseQuantityInMessage: false,
   notes: "" };
@@ -52,6 +53,7 @@ export default function InventoryPage() {
   async function save() {
     const body = { ...editing,
       currentQty: Number(editing.currentQty), minQty: Number(editing.minQty), parQty: Number(editing.parQty),
+      purchasePrice: Number(editing.purchasePrice ?? 0),
       avgDailyUsage: Number(editing.avgDailyUsage),
       unitsPerOrderUnit: editing.unitsPerOrderUnit === "" || editing.unitsPerOrderUnit == null ? null : Number(editing.unitsPerOrderUnit),
       orderUnitNameHe: editing.orderUnitNameHe || null, orderUnitNameEn: editing.orderUnitNameEn || null,
@@ -259,11 +261,12 @@ export default function InventoryPage() {
             <th className="p-3.5 text-xs font-semibold uppercase tracking-wide">{t("current")}</th>
             <th className="p-3.5 text-xs font-semibold uppercase tracking-wide">{t("min")}</th>
             <th className="p-3.5 text-xs font-semibold uppercase tracking-wide">{t("par")}</th>
+            <th className="p-3.5 hidden lg:table-cell text-xs font-semibold uppercase tracking-wide">{t("purchasePrice")}</th>
             <th className="p-3.5 hidden md:table-cell text-xs font-semibold uppercase tracking-wide">{t("supplier")}</th>{isManager && <th></th>}
           </tr></thead>
           <tbody>
             {filtered.length === 0 && (
-              <tr><td colSpan={isManager ? 7 : 5}><EmptyState label={t("noData")} /></td></tr>
+              <tr><td colSpan={isManager ? 8 : 6}><EmptyState label={t("noData")} /></td></tr>
             )}
             {filtered.map((i) => (
               <tr key={i.id} className={`border-t border-gray-100 transition-colors hover:bg-gray-50 ${i.currentQty < i.minQty ? "bg-red-50/60" : ""}`}>
@@ -272,6 +275,7 @@ export default function InventoryPage() {
                 <td className="p-3.5 text-center font-semibold tabular-nums">{i.currentQty} {i.unit}</td>
                 <td className="p-3.5 text-center text-gray-500 tabular-nums">{i.minQty}</td>
                 <td className="p-3.5 text-center text-gray-500 tabular-nums">{i.parQty}</td>
+                <td className="p-3.5 hidden lg:table-cell text-center text-gray-500 tabular-nums">{i.purchasePrice ?? 0}</td>
                 <td className="p-3.5 hidden md:table-cell">{i.supplier ? name(i.supplier) : "—"}</td>
                 {isManager && <td className="p-3.5"><button className="text-brand-700 font-medium inline-flex items-center gap-1" onClick={() => setEditing(i)}><Pencil className="h-3.5 w-3.5" />{t("edit")}</button></td>}
               </tr>
@@ -375,6 +379,7 @@ export default function InventoryPage() {
               <Field label={t("current")}><Input type="number" value={editing.currentQty} onChange={(e) => setEditing({ ...editing, currentQty: e.target.value })} /></Field>
               <Field label={t("min")}><Input type="number" value={editing.minQty} onChange={(e) => setEditing({ ...editing, minQty: e.target.value })} /></Field>
               <Field label={t("par")}><Input type="number" value={editing.parQty} onChange={(e) => setEditing({ ...editing, parQty: e.target.value })} /></Field>
+              <Field label={t("purchasePrice")}><Input type="number" value={editing.purchasePrice ?? 0} onChange={(e) => setEditing({ ...editing, purchasePrice: e.target.value })} /></Field>
               <Field label="Avg usage/day"><Input type="number" value={editing.avgDailyUsage} onChange={(e) => setEditing({ ...editing, avgDailyUsage: e.target.value })} /></Field>
             </div>
             <div className="border-t pt-2">

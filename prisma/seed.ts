@@ -76,18 +76,18 @@ async function main() {
         currentQty, minQty, parQty, avgDailyUsage, ...extra },
     });
 
-  const avocado = await raw("אבוקדו", "Avocado", "kg", supVeg.id, cVeg.id, 2, 5, 15, 3, { packSize: 10, orderMultiple: 1 });
-  const onion = await raw("בצל", "Onion", "kg", supVeg.id, cVeg.id, 8, 5, 20, 2);
-  const tomato = await raw("עגבנייה", "Tomato", "kg", supVeg.id, cVeg.id, 6, 5, 18, 4);
-  const cilantro = await raw("כוסברה", "Cilantro", "bunch", supVeg.id, cVeg.id, 4, 6, 20, 5);
-  const lime = await raw("ליים", "Lime", "kg", supVeg.id, cVeg.id, 3, 3, 10, 1.5);
-  const jalapeno = await raw("חלפיניו", "Jalapeño", "kg", supVeg.id, cVeg.id, 1, 2, 6, 0.8);
-  const cheese = await raw("גבינה צהובה", "Cheese", "kg", supDairy.id, cDairy.id, 4, 4, 12, 2);
-  const sourCream = await raw("שמנת חמוצה", "Sour Cream", "kg", supDairy.id, cDairy.id, 3, 3, 8, 1.2);
-  const beef = await raw("בשר טחון", "Ground Beef", "kg", supMeat.id, cMeat.id, 5, 6, 20, 4);
-  const chicken = await raw("חזה עוף", "Chicken Breast", "kg", supMeat.id, cMeat.id, 7, 6, 18, 3);
-  const tortilla = await raw("טורטייה", "Tortilla", "unit", supVeg.id, cDry.id, 120, 100, 400, 60, { packSize: 50, orderMultiple: 50 });
-  const buns = await raw("לחמניות", "Burger Buns", "unit", supVeg.id, cDry.id, 40, 50, 200, 30, { packSize: 24, orderMultiple: 24 });
+  const avocado = await raw("אבוקדו", "Avocado", "kg", supVeg.id, cVeg.id, 2, 5, 15, 3, { packSize: 10, orderMultiple: 1, purchasePrice: 18 });
+  const onion = await raw("בצל", "Onion", "kg", supVeg.id, cVeg.id, 8, 5, 20, 2, { purchasePrice: 4 });
+  const tomato = await raw("עגבנייה", "Tomato", "kg", supVeg.id, cVeg.id, 6, 5, 18, 4, { purchasePrice: 7 });
+  const cilantro = await raw("כוסברה", "Cilantro", "bunch", supVeg.id, cVeg.id, 4, 6, 20, 5, { purchasePrice: 3 });
+  const lime = await raw("ליים", "Lime", "kg", supVeg.id, cVeg.id, 3, 3, 10, 1.5, { purchasePrice: 12 });
+  const jalapeno = await raw("חלפיניו", "Jalapeño", "kg", supVeg.id, cVeg.id, 1, 2, 6, 0.8, { purchasePrice: 10 });
+  const cheese = await raw("גבינה צהובה", "Cheese", "kg", supDairy.id, cDairy.id, 4, 4, 12, 2, { purchasePrice: 28 });
+  const sourCream = await raw("שמנת חמוצה", "Sour Cream", "kg", supDairy.id, cDairy.id, 3, 3, 8, 1.2, { purchasePrice: 14 });
+  const beef = await raw("בשר טחון", "Ground Beef", "kg", supMeat.id, cMeat.id, 5, 6, 20, 4, { purchasePrice: 42 });
+  const chicken = await raw("חזה עוף", "Chicken Breast", "kg", supMeat.id, cMeat.id, 7, 6, 18, 3, { purchasePrice: 31 });
+  const tortilla = await raw("טורטייה", "Tortilla", "unit", supVeg.id, cDry.id, 120, 100, 400, 60, { packSize: 50, orderMultiple: 50, purchasePrice: 0.5 });
+  const buns = await raw("לחמניות", "Burger Buns", "unit", supVeg.id, cDry.id, 40, 50, 200, 30, { packSize: 24, orderMultiple: 24, purchasePrice: 1.2 });
 
   // --- Prep items (each is an InventoryItem of kind PREP + PrepItem + Recipe) ---
   const makePrep = async (

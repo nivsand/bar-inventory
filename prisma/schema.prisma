@@ -136,6 +136,7 @@ model User {
   ordersCreated     Order[]        @relation("OrderCreatedBy")
   deliveriesRecv    Delivery[]     @relation("DeliveryReceivedBy")
   deliveriesApprv   Delivery[]     @relation("DeliveryApprovedBy")
+  orderRecommendationDismissals OrderRecommendationDismissal[]
   wasteEntries      WasteEntry[]
   auditLogs         AuditLog[]
   notifications     Notification[]
@@ -215,6 +216,7 @@ model Supplier {
   items      InventoryItem[]
   orders     Order[]
   deliveries Delivery[]
+  orderRecommendationDismissals OrderRecommendationDismissal[]
 
   @@index([isActive])
 }
@@ -234,6 +236,7 @@ model InventoryItem {
   currentQty    Float    @default(0)
   minQty        Float    @default(0)   // minimum (safety) stock
   parQty        Float    @default(0)   // target / par level
+  purchasePrice Float    @default(0)   // cost per base unit used to value supplier orders
   // Organisation + daily-count scope (Phase 2)
   area          Area     @default(KITCHEN) // which area this item lives in
   inCount       Boolean  @default(true)    // whether it appears in the daily count
@@ -380,6 +383,7 @@ model OrderItem {
   itemId       String
   suggestedQty Float
   orderedQty   Float
+  purchasePriceSnapshot Float @default(0)
   currentQty   Float   // snapshot at time of suggestion
   minQty       Float
   reason       String? // why it was suggested
@@ -390,6 +394,21 @@ model OrderItem {
 
   @@unique([orderId, itemId])
   @@index([itemId])
+}
+
+model OrderRecommendationDismissal {
+  id                 String   @id @default(cuid())
+  supplierId         String
+  recommendationDate DateTime
+  createdById        String
+  createdAt          DateTime @default(now())
+
+  supplier  Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  createdBy User     @relation(fields: [createdById], references: [id])
+
+  @@unique([supplierId, recommendationDate])
+  @@index([recommendationDate])
+  @@index([createdById])
 }
 
 model OrderStatusHistory {

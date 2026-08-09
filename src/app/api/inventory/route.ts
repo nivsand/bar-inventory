@@ -53,6 +53,7 @@ const schema = z.object({
   categoryId: z.string().nullable().optional(), supplierId: z.string().nullable().optional(),
   locationId: z.string().nullable().optional(),
   currentQty: z.coerce.number().default(0), minQty: z.coerce.number().default(0), parQty: z.coerce.number().default(0),
+  purchasePrice: z.coerce.number().min(0).default(0),
   avgDailyUsage: z.coerce.number().default(0), packSize: z.coerce.number().nullable().optional(),
   orderMultiple: z.coerce.number().nullable().optional(), shelfLifeDays: z.coerce.number().nullable().optional(),
   orderUnitNameHe: z.string().nullable().optional(), orderUnitNameEn: z.string().nullable().optional(),

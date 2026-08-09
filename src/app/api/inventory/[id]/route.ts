@@ -23,6 +23,7 @@ const patchSchema = z.object({
   currentQty: z.coerce.number().optional(),
   minQty: z.coerce.number().optional(),
   parQty: z.coerce.number().optional(),
+  purchasePrice: z.coerce.number().min(0).optional(),
   avgDailyUsage: z.coerce.number().optional(),
   packSize: z.coerce.number().nullable().optional(),
   orderMultiple: z.coerce.number().nullable().optional(),

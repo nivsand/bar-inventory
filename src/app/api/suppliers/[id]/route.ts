@@ -1,13 +1,35 @@
 import { requireManager } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { ok, serverError } from "@/lib/api";
+import { badRequest, ok, serverError } from "@/lib/api";
 import { logAudit, diff } from "@/server/audit";
 import { deleteOrArchiveSupplier } from "@/server/archive";
+import { z } from "zod";
+
+const patchSchema = z.object({
+  nameHe: z.string().min(1).optional(),
+  nameEn: z.string().min(1).optional(),
+  contactPerson: z.string().nullable().optional(),
+  phone: z.string().nullable().optional(),
+  whatsapp: z.string().nullable().optional(),
+  email: z.string().nullable().optional(),
+  orderingMethod: z.enum(["WHATSAPP", "EMAIL", "PHONE", "APP", "OTHER"]).optional(),
+  orderDeadlineDays: z.array(z.number()).optional(),
+  orderCutoffTime: z.string().nullable().optional(),
+  deliveryDays: z.array(z.number()).optional(),
+  leadTimeDays: z.coerce.number().optional(),
+  minOrderAmount: z.coerce.number().min(0).nullable().optional(),
+  minOrderNote: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+  isActive: z.boolean().optional(),
+}).strip();
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   try {
     const user = await requireManager();
-    const body = await req.json();
+    const parsed = patchSchema.safeParse(await req.json());
+    if (!parsed.success) return badRequest(parsed.error.issues.map((i) => i.message).join(", "));
+    const body: any = { ...parsed.data };
+    if (body.isActive === true) { body.deletedAt = null; body.deletedById = null; }
     const before = await prisma.supplier.findUniqueOrThrow({ where: { id: params.id } });
     const s = await prisma.supplier.update({ where: { id: params.id }, data: body });
     await logAudit({ userId: user.id, entity: "Supplier", entityId: s.id, action: "UPDATE", changes: diff(before, body) });

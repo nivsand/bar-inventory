@@ -9,6 +9,17 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     const body = await req.json(); // { status?, messageBody?, notes?, items?:[{id,orderedQty}], addItems?:[{itemId,orderedQty}] }
     const before = await prisma.order.findUniqueOrThrow({ where: { id: params.id } });
 
+    if (Array.isArray(body.addItems) && body.addItems.length) {
+      const addItemIds = [...new Set(body.addItems.map((a: any) => a.itemId).filter(Boolean))] as string[];
+      if (body.addItems.some((a: any) => !a.itemId || !(Number(a.orderedQty) > 0))) {
+        return badRequest("Added products must include a positive quantity");
+      }
+      const addItems = await prisma.inventoryItem.findMany({ where: { id: { in: addItemIds }, isActive: true } });
+      const itemById = new Map(addItems.map((item) => [item.id, item]));
+      const invalid = addItemIds.find((id) => itemById.get(id)?.supplierId !== before.supplierId);
+      if (invalid) return badRequest("Products from other suppliers cannot be added to this order");
+    }
+
     const data: any = {};
     if (body.status) { data.status = body.status; if (body.status === "ORDERED") data.sentAt = new Date(); }
     if (body.messageBody !== undefined) data.messageBody = body.messageBody;
@@ -27,7 +38,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     if (Array.isArray(body.addItems) && body.addItems.length) {
       for (const a of body.addItems) {
         if (!a.itemId) continue;
-        const item = await prisma.inventoryItem.findUnique({ where: { id: a.itemId } });
+        const item = await prisma.inventoryItem.findFirst({ where: { id: a.itemId, isActive: true } });
         if (!item) continue;
         const orderedQty = Number(a.orderedQty) || 0;
         await prisma.orderItem.upsert({
@@ -35,6 +46,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
           update: { orderedQty },
           create: {
             orderId: params.id, itemId: a.itemId, suggestedQty: orderedQty, orderedQty,
+            purchasePriceSnapshot: item.purchasePrice,
             currentQty: item.currentQty, minQty: item.minQty, reason: "Manually added", unit: item.unit,
           },
         });

@@ -1,10 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { suggestForItem, roundToPack, buildSuggestions, formatOrderUnit, OrderingItemInput, SupplierSchedule } from "./ordering";
+import { suggestForItem, roundToPack, buildMinimumOrderSuggestions, buildSuggestions, formatOrderUnit, OrderingItemInput, SupplierSchedule } from "./ordering";
 
 const base: OrderingItemInput = {
   id: "avocado", nameHe: "אבוקדו", nameEn: "Avocado", unit: "kg",
-  currentQty: 2, minQty: 5, parQty: 15, avgDailyUsage: 3, supplierId: "s1",
+  currentQty: 2, minQty: 5, parQty: 15, avgDailyUsage: 3, supplierId: "s1", purchasePrice: 10,
 };
 
 test("spec example: low avocado before delivery -> shortage suggestion", () => {
@@ -65,4 +65,20 @@ test("prep-driven extra demand pushes an otherwise-ok item into ordering", () =>
   assert.equal(none.length, 0, "fine on its own");
   assert.ok(withDemand.length >= 0); // demand reduces effective stock; reported currentQty stays real
   if (withDemand.length) assert.equal(withDemand[0].currentQty, 6, "reports real current qty, not adjusted");
+});
+
+test("minimum-order top-up suggestions stay on the same supplier and use urgency", () => {
+  const today = new Date("2026-05-30");
+  const items: OrderingItemInput[] = [
+    base,
+    { ...base, id: "soon", nameEn: "Soon", currentQty: 8, minQty: 5, parQty: 20, avgDailyUsage: 2, purchasePrice: 4 },
+    { ...base, id: "other-supplier", supplierId: "s2", currentQty: 0, minQty: 5, parQty: 20, avgDailyUsage: 4, purchasePrice: 30 },
+    { ...base, id: "no-price", currentQty: 0, minQty: 5, parQty: 20, avgDailyUsage: 4, purchasePrice: 0 },
+  ];
+  const sched = new Map<string, SupplierSchedule>([["s1", { id: "s1", orderDeadlineDays: [], deliveryDays: [], leadTimeDays: 1 }]]);
+  const topUps = buildMinimumOrderSuggestions(items, sched, today, "s1", new Set(["avocado"]));
+  assert.ok(topUps.length >= 1);
+  assert.equal(topUps[0].itemId, "soon");
+  assert.ok(topUps.every((s) => s.purchasePrice > 0));
+  assert.ok(topUps.every((s) => s.itemId !== "other-supplier"));
 });

@@ -24,7 +24,7 @@ const schema = z.object({
   orderingMethod: z.enum(["WHATSAPP", "EMAIL", "PHONE", "APP", "OTHER"]).default("WHATSAPP"),
   orderDeadlineDays: z.array(z.number()).default([]), orderCutoffTime: z.string().nullable().optional(),
   deliveryDays: z.array(z.number()).default([]), leadTimeDays: z.number().default(1),
-  minOrderAmount: z.number().nullable().optional(), minOrderNote: z.string().nullable().optional(),
+  minOrderAmount: z.coerce.number().min(0).nullable().optional(), minOrderNote: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
 });
 
