@@ -64,17 +64,17 @@ file header for column names). Everything imported is editable in the UI.
 6. Smart ordering recommendations (rule-based engine)
 7. Supplier order generation (WhatsApp / email / copy)
 8. Prep recommendations with recipe ingredient validation
-9. OCR receipt upload (pluggable provider; review-before-apply)
+9. Goods receiving inside orders (manual review before stock update)
 10. English / Hebrew with RTL/LTR + remembered preference
 
-Plus: order workflow & history, delivery receiving, waste tracking, CSV reports,
+Plus: order workflow & history, goods receiving inside orders, waste tracking, CSV reports,
 audit trail, approval workflow, menu recipes (future POS-ready).
 
-## OCR
-The MVP ships a deterministic stub provider so the receipt-review flow works with
-zero API keys. To wire a real provider, implement `OcrProvider` in
-`src/server/ocr/index.ts` and set `OCR_PROVIDER` + `OCR_API_KEY`. Inventory is
-**never** updated automatically — extracted items go to a manager review screen.
+## Receiving goods
+Receiving is part of the order workflow. Opening an open order shows every
+ordered line with the received quantity prefilled to the ordered quantity. The
+manager edits quantities, flags missing lines, then marks the order **ARRIVED** —
+the only action that updates inventory, using the confirmed received quantities.
 
 ## Install as a phone app (PWA)
 The app is a Progressive Web App: a web manifest, service worker, theme color and
@@ -97,8 +97,6 @@ required) into `public/icons/`.
 | `DIRECT_URL` | ✅ | Neon **direct** connection string. Used by `prisma migrate deploy`. |
 | `NEXTAUTH_SECRET` | ✅ | `openssl rand -base64 32`. |
 | `NEXTAUTH_URL` | ✅ | Your production URL, e.g. `https://your-app.vercel.app`. |
-| `OCR_PROVIDER` | ⬜ | Leave blank for the built-in stub. |
-| `OCR_API_KEY` | ⬜ | Only if using a real OCR provider. |
 
 ### Steps
 1. **Create the Neon database** and copy both connection strings (pooled →

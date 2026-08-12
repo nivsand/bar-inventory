@@ -444,9 +444,10 @@ model Delivery {
   // approval
   approvedById  String?
   approvedAt    DateTime?
-  // OCR / document
+  // Legacy document fields from the removed receipt-OCR flow. Kept so historic
+  // records stay readable; the receiving workflow never writes them.
   documentUrl   String?
-  ocrRaw        String?        // raw OCR text/json kept for review
+  ocrRaw        String?
   createdAt     DateTime       @default(now())
 
   order        Order?         @relation(fields: [orderId], references: [id])

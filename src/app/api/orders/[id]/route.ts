@@ -1,25 +1,15 @@
 import { withRouteTiming } from "@/lib/perf";
 import { requireManager } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { ok, serverError, badRequest } from "@/lib/api";
+import { ok, serverError } from "@/lib/api";
 import { logAudit } from "@/server/audit";
+import { applyOrderReceiving } from "@/server/receiving";
 
 async function PATCH__handler(req: Request, { params }: { params: { id: string } }) {
   try {
     const user = await requireManager();
-    const body = await req.json(); // { status?, messageBody?, notes?, items?:[{id,orderedQty}], addItems?:[{itemId,orderedQty}] }
+    const body = await req.json(); // { status?, messageBody?, notes?, items?:[{id,orderedQty}] }
     const before = await prisma.order.findUniqueOrThrow({ where: { id: params.id } });
-
-    if (Array.isArray(body.addItems) && body.addItems.length) {
-      const addItemIds = [...new Set(body.addItems.map((a: any) => a.itemId).filter(Boolean))] as string[];
-      if (body.addItems.some((a: any) => !a.itemId || !(Number(a.orderedQty) > 0))) {
-        return badRequest("Added products must include a positive quantity");
-      }
-      const addItems = await prisma.inventoryItem.findMany({ where: { id: { in: addItemIds }, isActive: true } });
-      const itemById = new Map(addItems.map((item) => [item.id, item]));
-      const invalid = addItemIds.find((id) => itemById.get(id)?.supplierId !== before.supplierId);
-      if (invalid) return badRequest("Products from other suppliers cannot be added to this order");
-    }
 
     const data: any = {};
     if (body.status) { data.status = body.status; if (body.status === "ORDERED") data.sentAt = new Date(); }
@@ -35,23 +25,11 @@ async function PATCH__handler(req: Request, { params }: { params: { id: string }
       }
     }
 
-    // Manually add extra items to an open order (manager/admin).
-    if (Array.isArray(body.addItems) && body.addItems.length) {
-      for (const a of body.addItems) {
-        if (!a.itemId) continue;
-        const item = await prisma.inventoryItem.findFirst({ where: { id: a.itemId, isActive: true } });
-        if (!item) continue;
-        const orderedQty = Number(a.orderedQty) || 0;
-        await prisma.orderItem.upsert({
-          where: { orderId_itemId: { orderId: params.id, itemId: a.itemId } },
-          update: { orderedQty },
-          create: {
-            orderId: params.id, itemId: a.itemId, suggestedQty: orderedQty, orderedQty,
-            purchasePriceSnapshot: item.purchasePrice,
-            currentQty: item.currentQty, minQty: item.minQty, reason: "Manually added", unit: item.unit,
-          },
-        });
-      }
+    // ARRIVED is the ONLY point where an order touches inventory: the reviewed
+    // received quantities are applied through the stock ledger. Idempotent —
+    // re-entering ARRIVED never doubles stock (see applyOrderReceiving).
+    if (body.status === "ARRIVED" && before.status !== "ARRIVED") {
+      await prisma.$transaction((tx) => applyOrderReceiving(tx, { orderId: params.id, userId: user.id }));
     }
 
     if (body.status && body.status !== before.status) {
@@ -73,6 +51,8 @@ async function DELETE__handler(_req: Request, { params }: { params: { id: string
     const order = await prisma.order.findUniqueOrThrow({ where: { id: params.id } });
 
     if (order.status === "NEED_TO_ORDER") {
+      // A draft receiving review (never applied to stock) must not block the delete.
+      await prisma.delivery.deleteMany({ where: { orderId: params.id, confirmed: false } });
       await prisma.order.delete({ where: { id: params.id } }); // items + history cascade
       await logAudit({ userId: user.id, entity: "Order", entityId: params.id, action: "DELETE" });
       return ok({ ok: true });

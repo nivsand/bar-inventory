@@ -9,7 +9,7 @@ is Prisma over PostgreSQL. The UI is React client components calling JSON APIs.
 src/
   app/
     (app)/            # authenticated, wrapped in AppShell (nav + language switch)
-      dashboard, count, inventory, suppliers, orders, prep, deliveries, waste, reports, users
+      dashboard, count, inventory, suppliers, orders, prep, waste, reports, users
     api/              # REST-ish route handlers (21 endpoints)
     login/            # public sign-in
   components/         # AppShell, Providers, shared UI primitives
@@ -17,7 +17,7 @@ src/
   server/             # business logic
     engines/ordering.ts   # smart ordering (pure, unit-testable)
     engines/prep.ts       # prep recommendations + ingredient validation
-    ocr/index.ts          # pluggable OCR interface + item matching
+    receiving.ts          # goods receiving inside the order workflow
     stock.ts              # inventory ledger (single source of mutation)
     audit.ts              # field-level audit logging
 prisma/schema.prisma  # normalized schema (20+ models)
@@ -35,7 +35,7 @@ consumption reports trivial.
 ### Daily count = source of truth
 On approval, a count **sets absolute stock** (not a delta), overriding prior
 assumptions, and records the difference as a `DAILY_COUNT` adjustment.
-Deliveries add deltas; waste subtracts. Approval workflow: DRAFT → SUBMITTED →
+Receiving goods adds deltas; waste subtracts. Approval workflow: DRAFT → SUBMITTED →
 APPROVED/REJECTED (or back to DRAFT for recount).
 
 ### Smart ordering engine (rule-based)
@@ -52,11 +52,17 @@ checks recipe ingredients against live stock. Shortfalls are surfaced and
 aggregated into ordering demand. Completing a prep task consumes ingredients and
 produces the prep item — all through the ledger.
 
-### Pluggable OCR
-`ocr/index.ts` defines `OcrProvider`. The stub returns parseable sample data so
-the review UI works offline. Real providers (OpenAI/Google/Azure) implement the
-interface and are selected by env var. Extraction never mutates inventory — a
-manager reviews and confirms, which then creates a confirmed Delivery.
+### Receiving goods (inside orders)
+There is no separate deliveries module. An open order (ORDERED /
+PARTIALLY_DELIVERED / …) has a receiving screen (`server/receiving.ts`,
+`/api/orders/[id]/receiving`) where the manager reviews what actually arrived:
+per-line received quantity (prefilled with the ordered quantity), missing /
+partial flags and notes. Review is fully manual. It is stored as a DRAFT
+`Delivery` + `DeliveryItem` rows and has **no** stock effect.
+Inventory changes only when the order status becomes `ARRIVED`: the reviewed
+quantities are applied through `applyBatchAdjustments` (source `DELIVERY`) and
+the receiving record is marked APPROVED/confirmed. Applying is idempotent — a
+confirmed receiving is never applied twice.
 
 ### i18n / RTL
 `I18nProvider` holds locale, flips `<html dir>`, persists to `localStorage` and

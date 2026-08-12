@@ -16,7 +16,7 @@ async function GET__handler() {
     const dow = today.getDay();
     const dayStart = startOfDay(today), dayEnd = endOfDay(today);
 
-    const [dbUser, items, suppliers, openOrdersCount, pendingCounts, todayCount, openPrepTasks, pendingDeliveries] = await Promise.all([
+    const [dbUser, items, suppliers, openOrdersCount, pendingCounts, todayCount, openPrepTasks, pendingReceiving] = await Promise.all([
       prisma.user.findUnique({ where: { id: user.id }, select: { area: true } }),
       // Select only fields needed for low-stock/critical computation and list display.
       // Removed include: { supplier } — supplier not rendered on the dashboard.
@@ -40,7 +40,13 @@ async function GET__handler() {
         include: { prepItem: { include: { item: true } }, assignee: true },
         orderBy: { createdAt: "desc" }, take: 50,
       }),
-      prisma.delivery.findMany({ where: { status: "SUBMITTED" }, include: { receivedBy: true }, orderBy: { receivedAt: "desc" }, take: 20 }),
+      // Orders that have been sent and are waiting for goods to be received
+      // + reviewed inside the order workflow (receiving is no longer a module).
+      prisma.order.findMany({
+        where: { status: { in: ["ORDERED", "PARTIALLY_DELIVERED", "MISSING_ITEMS"] } },
+        select: { id: true, status: true, sentAt: true, createdAt: true, supplier: { select: { nameHe: true, nameEn: true } } },
+        orderBy: { createdAt: "desc" }, take: 20,
+      }),
     ]);
 
     const lowStock = items.filter((i) => i.currentQty < i.minQty);
@@ -61,11 +67,11 @@ async function GET__handler() {
         lowStock: lowStock.length, critical: critical.length,
         openOrders: openOrdersCount, pendingApprovals: pendingCounts.length,
         ordersDueToday: ordersDueTodayCount, deliveriesToday: deliveriesTodayCount,
-        prepTasks: prepForUser.length, pendingDeliveries: pendingDeliveries.length,
+        prepTasks: prepForUser.length, pendingReceiving: pendingReceiving.length,
         overduePrep: overduePrep.length,
       },
       todayCount: todayCount ? { id: todayCount.id, status: todayCount.status, countedBy: todayCount.countedBy?.name } : null,
-      lowStock, critical, pendingCounts, pendingDeliveries,
+      lowStock, critical, pendingCounts, pendingReceiving,
       prepTasks: prepForUser, overduePrep,
     });
   } catch (e) {

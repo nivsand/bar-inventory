@@ -205,7 +205,7 @@ deployed; lab and field numbers will differ and both matter.
 3. **Response size buffers the body** for JSON/text responses via `res.clone()`.
    Binary and streaming responses report `n/a` — deliberately, to avoid holding
    a large body in memory. `/api/reports/[type]` returns CSV as `text/*`, so it
-   *is* buffered; the OCR upload route is not.
+   *is* buffered; binary/streaming routes are not.
 4. **`/api/auth/[...nextauth]` is not instrumented.** Its handler is constructed
    by NextAuth, and wrapping it risks breaking the auth flow. Login cost is
    therefore invisible to `[perf]` — note that `authorize()` does a `findUnique`

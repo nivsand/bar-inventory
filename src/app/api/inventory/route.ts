@@ -9,11 +9,24 @@ import { ok, created, serverError } from "@/lib/api";
 import { logAudit } from "@/server/audit";
 import { inventoryCreateSchema } from "@/server/validation";
 
+// Fields the orders screen needs to add a product to an order before it is
+// generated: identity + supplier filter, pricing (order value / supplier
+// minimum) and the ordering-unit labels used by the supplier message.
 const orderPickerSelect = {
   id: true,
   nameHe: true,
   nameEn: true,
   supplierId: true,
+  unit: true,
+  currentQty: true,
+  minQty: true,
+  purchasePrice: true,
+  unitsPerOrderUnit: true,
+  orderUnitNameHe: true,
+  orderUnitNameEn: true,
+  messageUnitHe: true,
+  messageUnitEn: true,
+  showBaseQuantityInMessage: true,
 } as const;
 
 async function GET__handler(req: Request) {

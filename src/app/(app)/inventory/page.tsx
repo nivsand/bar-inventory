@@ -269,37 +269,6 @@ export default function InventoryPage() {
         </div>
       )}
 
-      <Card className="overflow-x-auto p-0">
-        <table className="w-full text-sm">
-          <thead className="text-gray-500"><tr>
-            {isManager && <th className="p-3.5 w-8"></th>}
-            <th className="text-start p-3.5 text-xs font-semibold uppercase tracking-wide">{t("item")}</th>
-            <th className="p-3.5 text-xs font-semibold uppercase tracking-wide">{t("current")}</th>
-            <th className="p-3.5 text-xs font-semibold uppercase tracking-wide">{t("min")}</th>
-            <th className="p-3.5 text-xs font-semibold uppercase tracking-wide">{t("par")}</th>
-            <th className="p-3.5 hidden lg:table-cell text-xs font-semibold uppercase tracking-wide">{t("purchasePrice")}</th>
-            <th className="p-3.5 hidden md:table-cell text-xs font-semibold uppercase tracking-wide">{t("supplier")}</th>{isManager && <th></th>}
-          </tr></thead>
-          <tbody>
-            {filtered.length === 0 && (
-              <tr><td colSpan={isManager ? 8 : 6}><EmptyState label={t("noData")} /></td></tr>
-            )}
-            {filtered.map((i) => (
-              <tr key={i.id} className={`border-t border-gray-100 transition-colors hover:bg-gray-50 ${i.currentQty < i.minQty ? "bg-red-50/60" : ""}`}>
-                {isManager && <td className="p-3.5"><input type="checkbox" checked={sel.has(i.id)} onChange={() => toggleSel(sel, setSel, i.id)} /></td>}
-                <td className="p-3.5 font-medium text-gray-900">{name(i)} <Badge tone="neutral" className="ms-1">{i.kind === "PREP" ? t("prep") : t("inventory")}</Badge></td>
-                <td className="p-3.5 text-center font-semibold tabular-nums">{i.currentQty} {i.unit}</td>
-                <td className="p-3.5 text-center text-gray-500 tabular-nums">{i.minQty}</td>
-                <td className="p-3.5 text-center text-gray-500 tabular-nums">{i.parQty}</td>
-                <td className="p-3.5 hidden lg:table-cell text-center text-gray-500 tabular-nums">{i.purchasePrice ?? 0}</td>
-                <td className="p-3.5 hidden md:table-cell">{i.supplier ? name(i.supplier) : "—"}</td>
-                {isManager && <td className="p-3.5"><button className="text-brand-700 font-medium inline-flex items-center gap-1" onClick={() => setEditing(i)}><Pencil className="h-3.5 w-3.5" />{t("edit")}</button></td>}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </Card>
-
       {isManager && (
         <section className="space-y-3">
           <h2 className="font-semibold text-lg">{t("quickUpdateBySupplier")}</h2>
@@ -353,6 +322,37 @@ export default function InventoryPage() {
           </Card>
         </section>
       )}
+
+      <Card className="overflow-x-auto p-0">
+        <table className="w-full text-sm">
+          <thead className="text-gray-500"><tr>
+            {isManager && <th className="p-3.5 w-8"></th>}
+            <th className="text-start p-3.5 text-xs font-semibold uppercase tracking-wide">{t("item")}</th>
+            <th className="p-3.5 text-xs font-semibold uppercase tracking-wide">{t("current")}</th>
+            <th className="p-3.5 text-xs font-semibold uppercase tracking-wide">{t("min")}</th>
+            <th className="p-3.5 text-xs font-semibold uppercase tracking-wide">{t("par")}</th>
+            <th className="p-3.5 hidden lg:table-cell text-xs font-semibold uppercase tracking-wide">{t("purchasePrice")}</th>
+            <th className="p-3.5 hidden md:table-cell text-xs font-semibold uppercase tracking-wide">{t("supplier")}</th>{isManager && <th></th>}
+          </tr></thead>
+          <tbody>
+            {filtered.length === 0 && (
+              <tr><td colSpan={isManager ? 8 : 6}><EmptyState label={t("noData")} /></td></tr>
+            )}
+            {filtered.map((i) => (
+              <tr key={i.id} className={`border-t border-gray-100 transition-colors hover:bg-gray-50 ${i.currentQty < i.minQty ? "bg-red-50/60" : ""}`}>
+                {isManager && <td className="p-3.5"><input type="checkbox" checked={sel.has(i.id)} onChange={() => toggleSel(sel, setSel, i.id)} /></td>}
+                <td className="p-3.5 font-medium text-gray-900">{name(i)} <Badge tone="neutral" className="ms-1">{i.kind === "PREP" ? t("prep") : t("inventory")}</Badge></td>
+                <td className="p-3.5 text-center font-semibold tabular-nums">{i.currentQty} {i.unit}</td>
+                <td className="p-3.5 text-center text-gray-500 tabular-nums">{i.minQty}</td>
+                <td className="p-3.5 text-center text-gray-500 tabular-nums">{i.parQty}</td>
+                <td className="p-3.5 hidden lg:table-cell text-center text-gray-500 tabular-nums">{i.purchasePrice ?? 0}</td>
+                <td className="p-3.5 hidden md:table-cell">{i.supplier ? name(i.supplier) : "—"}</td>
+                {isManager && <td className="p-3.5"><button className="text-brand-700 font-medium inline-flex items-center gap-1" onClick={() => setEditing(i)}><Pencil className="h-3.5 w-3.5" />{t("edit")}</button></td>}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
 
       {editing && (
         <div className="modal-overlay" onClick={() => setEditing(null)}>

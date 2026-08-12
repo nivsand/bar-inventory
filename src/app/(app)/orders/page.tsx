@@ -4,7 +4,7 @@ import { useI18n } from "@/lib/i18n/I18nProvider";
 import { useSession } from "next-auth/react";
 import { api } from "@/lib/fetcher";
 import { invalidateApiCache, useApiResource } from "@/lib/client-cache";
-import { Card, PageSpinner, Badge, EmptyState } from "@/components/ui";
+import { Card, PageSpinner, Spinner, Badge, EmptyState } from "@/components/ui";
 import { Plus } from "lucide-react";
 import { computeCycleStart } from "@/server/engines/ordering";
 import { ORDER_STATUS_ORDER, calculateOrderValue, fmtMoney } from "@/lib/orders";
@@ -15,6 +15,18 @@ const STATUS_TONE: Record<string, "warn" | "info" | "ok" | "danger" | "neutral">
   MISSING_ITEMS: "danger", PROBLEM: "danger", CANCELLED: "neutral",
 };
 const OPEN_ORDER_STATUSES = new Set(["NEED_TO_ORDER", "ORDERED", "PARTIALLY_DELIVERED"]);
+// Statuses where goods can be received: the order has been sent but stock has
+// not been applied yet (that happens once, on ARRIVED).
+const RECEIVABLE_STATUSES = new Set(["ORDERED", "PARTIALLY_DELIVERED", "MISSING_ITEMS", "PROBLEM"]);
+
+type ReceivingLine = {
+  itemId: string; nameHe: string; nameEn: string; unit: string;
+  orderedQty: number; receivedQty: number; isMissing: boolean; isShort: boolean; note: string;
+};
+type Receiving = {
+  orderId: string; orderStatus: string; receivingId: string | null; confirmed: boolean;
+  notes: string | null; lines: ReceivingLine[];
+};
 
 type Named = { nameHe?: string | null; nameEn?: string | null };
 type MsgItem = Named & {
@@ -76,9 +88,15 @@ export default function OrdersPage() {
 
   const [qty, setQty] = useState<Record<string, number>>({});
   const [msg, setMsg] = useState<{ supplier: any; text: string } | null>(null);
+  // Add a product to a supplier's suggestion group BEFORE the order is generated.
   const [addTo, setAddTo] = useState<string | null>(null);
   const [addForm, setAddForm] = useState<{ itemId: string; qty: string }>({ itemId: "", qty: "" });
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
+  // Receiving goods inside an order.
+  const [receivingFor, setReceivingFor] = useState<string | null>(null);
+  const [receiving, setReceiving] = useState<Receiving | null>(null);
+  const [receivingBusy, setReceivingBusy] = useState(false);
+  const [receivingError, setReceivingError] = useState("");
 
   const suggestionsResource = useApiResource<any>("/api/orders/suggestions");
   const ordersResource = useApiResource<any[]>("/api/orders");
@@ -151,14 +169,61 @@ export default function OrdersPage() {
   }
 
   async function setStatus(id: string, status: string) {
+    // ARRIVED is the point where reviewed quantities hit inventory — always go
+    // through the receiving flow so pending edits are saved first.
+    if (status === "ARRIVED") return markArrived(id);
     await api(`/api/orders/${id}`, { method: "PATCH", body: JSON.stringify({ status }) });
     await reloadOrderData();
   }
 
-  async function addItem(orderId: string) {
-    if (!addForm.itemId || !addForm.qty) return;
-    await api(`/api/orders/${orderId}`, { method: "PATCH", body: JSON.stringify({ addItems: [{ itemId: addForm.itemId, orderedQty: Number(addForm.qty) }] }) });
-    setAddTo(null); setAddForm({ itemId: "", qty: "" }); await reloadOrderData();
+  // ---------------- Receiving goods (inside the order) ----------------
+
+  async function openReceiving(orderId: string) {
+    if (receivingFor === orderId) { setReceivingFor(null); setReceiving(null); return; }
+    setReceivingFor(orderId); setReceiving(null); setReceivingError("");
+    try { setReceiving(await api(`/api/orders/${orderId}/receiving`)); }
+    catch (e: any) { setReceivingError(e.message); }
+  }
+
+  function updateLine(itemId: string, patch: Partial<ReceivingLine>) {
+    setReceiving((r) => r && ({ ...r, lines: r.lines.map((l) => (l.itemId === itemId ? { ...l, ...patch } : l)) }));
+  }
+
+  async function saveReceiving(orderId: string) {
+    if (!receiving) return false;
+    setReceivingBusy(true); setReceivingError("");
+    try {
+      const saved = await api(`/api/orders/${orderId}/receiving`, {
+        method: "PUT",
+        body: JSON.stringify({
+          notes: receiving.notes,
+          lines: receiving.lines.map((l) => ({
+            itemId: l.itemId, receivedQty: l.isMissing ? 0 : Number(l.receivedQty) || 0,
+            isMissing: l.isMissing, note: l.note || null,
+          })),
+        }),
+      });
+      setReceiving(saved);
+      return true;
+    } catch (e: any) { setReceivingError(e.message); return false; }
+    finally { setReceivingBusy(false); }
+  }
+
+  // Manager confirms what arrived → inventory is updated with the FINAL
+  // received quantities (server side, through the stock ledger).
+  async function markArrived(orderId: string) {
+    if (!window.confirm(t("confirmArrivedUpdatesStock"))) return;
+    if (receivingFor === orderId && receiving && !receiving.confirmed) {
+      const saved = await saveReceiving(orderId);
+      if (!saved) return;
+    }
+    try {
+      await api(`/api/orders/${orderId}`, { method: "PATCH", body: JSON.stringify({ status: "ARRIVED" }) });
+      setReceivingFor(null); setReceiving(null);
+      await reloadOrderData();
+      invalidateApiCache("/api/inventory");
+      invalidateApiCache("/api/dashboard");
+    } catch (e: any) { setReceivingError(e.message); alert(e.message); }
   }
 
   async function notToday(supplierId: string) {
@@ -181,6 +246,27 @@ export default function OrdersPage() {
     setQty((q) => ({ ...q, [item.itemId]: item.suggestedQty }));
   }
 
+  // Add a product manually BEFORE the order is generated. It joins the
+  // supplier's suggestion group, so it counts towards the order value and the
+  // supplier minimum, and is included in the generated order + its message.
+  function addManualProduct(supplierId: string) {
+    const item = inventory.find((i: any) => i.id === addForm.itemId);
+    const quantity = Number(addForm.qty);
+    if (!item || !(quantity > 0)) return;
+    addSuggestedProduct(supplierId, {
+      itemId: item.id, nameHe: item.nameHe, nameEn: item.nameEn, unit: item.unit,
+      currentQty: item.currentQty ?? 0, minQty: item.minQty ?? 0, suggestedQty: quantity,
+      purchasePrice: item.purchasePrice ?? 0,
+      orderUnitQty: item.unitsPerOrderUnit ? Math.ceil(quantity / item.unitsPerOrderUnit) : null,
+      unitsPerOrderUnit: item.unitsPerOrderUnit ?? null,
+      orderUnitNameHe: item.orderUnitNameHe ?? null, orderUnitNameEn: item.orderUnitNameEn ?? null,
+      messageUnitHe: item.messageUnitHe ?? null, messageUnitEn: item.messageUnitEn ?? null,
+      showBaseQuantityInMessage: !!item.showBaseQuantityInMessage,
+      reasonKey: "MANUAL", reason: t("manuallyAdded"),
+    });
+    setAddTo(null); setAddForm({ itemId: "", qty: "" });
+  }
+
   async function deleteOrder(id: string, isSent: boolean) {
     if (!window.confirm(isSent ? t("confirmCancelOrder") : t("confirmDeleteOrder"))) return;
     try { await api(`/api/orders/${id}`, { method: "DELETE" }); await reloadOrderData(); }
@@ -194,14 +280,75 @@ export default function OrdersPage() {
     history: { key: "history", labelKey: "history" as const, list: orders.filter((o) => !OPEN_ORDER_STATUSES.has(o.status)) },
   };
 
+  // Receiving screen for one order: review what actually arrived, flag missing
+  // / partial lines, attach + analyze the supplier invoice, then mark ARRIVED
+  // (the only action that updates inventory).
+  const renderReceiving = (o: any) => (
+    <div className="mt-3 border-t pt-3 space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <h3 className="font-semibold">{t("receiveGoods")}</h3>
+        {receivingBusy && <Spinner />}
+      </div>
+      <p className="text-xs text-gray-500">{t("stockUpdatesOnArrived")}</p>
+
+      {!receiving ? <Spinner /> : (
+        <>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-gray-500"><tr>
+                <th className="text-start p-2">{t("item")}</th>
+                <th className="p-2">{t("ordered")}</th>
+                <th className="p-2">{t("receivedQty")}</th>
+                <th className="p-2">{t("missing")}</th>
+                <th className="text-start p-2">{t("note")}</th>
+              </tr></thead>
+              <tbody>{receiving.lines.map((l) => (
+                <tr key={l.itemId} className="border-t">
+                  <td className="p-2">{name(l)}</td>
+                  <td className="p-2 text-center text-gray-500 tabular-nums">{l.orderedQty} {l.unit}</td>
+                  <td className="p-2 text-center">
+                    <input className="touch-input h-10 w-24 text-center" type="number" min={0} disabled={l.isMissing || receiving.confirmed}
+                      value={l.isMissing ? 0 : l.receivedQty}
+                      onChange={(e) => updateLine(l.itemId, { receivedQty: Number(e.target.value) })} />
+                    {!l.isMissing && l.receivedQty < l.orderedQty && (
+                      <div className="text-[11px] text-amber-700 mt-0.5">{t("partial")}</div>
+                    )}
+                  </td>
+                  <td className="p-2 text-center">
+                    <input type="checkbox" checked={l.isMissing} disabled={receiving.confirmed}
+                      onChange={(e) => updateLine(l.itemId, { isMissing: e.target.checked, receivedQty: e.target.checked ? 0 : l.orderedQty })} />
+                  </td>
+                  <td className="p-2">
+                    <input className="touch-input h-10 w-full" value={l.note} disabled={receiving.confirmed}
+                      onChange={(e) => updateLine(l.itemId, { note: e.target.value })} />
+                  </td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+          {receivingError && <p className="text-red-600 text-sm">{receivingError}</p>}
+          {!receiving.confirmed && (
+            <div className="flex flex-wrap gap-2">
+              <button className="btn-ghost text-sm" onClick={() => saveReceiving(o.id)} disabled={receivingBusy}>
+                {receivingBusy ? t("processing") : t("save")}
+              </button>
+              <button className="btn-primary text-sm" onClick={() => markArrived(o.id)} disabled={receivingBusy}>{t("markArrived")}</button>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+
   const renderOrderSection = (sectionDef: typeof orderSections.open | typeof orderSections.history) => (
     <section key={sectionDef.key} className="space-y-3">
       <h2 className="font-semibold text-lg">{t(sectionDef.labelKey)} ({sectionDef.list.length})</h2>
       {sectionDef.list.length === 0 && <Card><EmptyState label={t("noData")} /></Card>}
       {sectionDef.list.map((o) => {
         const isOpen = o.status === "NEED_TO_ORDER";
-        const editable = o.status !== "CANCELLED" && o.status !== "ARRIVED";
+        const canReceive = RECEIVABLE_STATUSES.has(o.status);
         const expanded = expandedOrders.has(o.id);
+        const receivingOpen = receivingFor === o.id;
         return (
           <Card key={o.id}>
             <div className="flex justify-between items-center gap-2 flex-wrap">
@@ -231,22 +378,10 @@ export default function OrdersPage() {
                 {expanded ? t("hideProducts") : `${t("showProducts")} (${o.items.length})`}
               </button>
               <button className="text-brand-600 text-sm" onClick={() => openMessage(o)}>{t("copyMessage")}</button>
-              {isManager && editable && (
-                addTo === o.id ? (
-                  <span className="flex flex-wrap gap-2 items-center">
-                    <select className="touch-input h-10 w-auto text-sm" value={addForm.itemId} onChange={(e) => setAddForm({ ...addForm, itemId: e.target.value })}>
-                      <option value="">—</option>
-                      {inventory
-                        .filter((i) => i.supplierId === o.supplierId && !o.items.some((oi: any) => oi.itemId === i.id))
-                        .map((i) => <option key={i.id} value={i.id}>{name(i)}</option>)}
-                    </select>
-                    <input className="touch-input h-10 w-20 text-center" type="number" placeholder={t("quantity")} value={addForm.qty} onChange={(e) => setAddForm({ ...addForm, qty: e.target.value })} />
-                    <button className="btn-primary text-sm" onClick={() => addItem(o.id)} disabled={!addForm.itemId || !addForm.qty}>{t("add")}</button>
-                    <button className="btn-ghost text-sm" onClick={() => { setAddTo(null); setAddForm({ itemId: "", qty: "" }); }}>{t("cancel")}</button>
-                  </span>
-                ) : (
-                  <button className="btn-ghost text-sm" onClick={() => { setAddTo(o.id); setAddForm({ itemId: "", qty: "" }); }}><Plus className="h-3.5 w-3.5" />{t("addProduct")}</button>
-                )
+              {isManager && canReceive && (
+                <button className="btn-primary text-sm" onClick={() => openReceiving(o.id)}>
+                  {receivingOpen ? t("cancel") : t("receiveGoods")}
+                </button>
               )}
             </div>
 
@@ -257,6 +392,8 @@ export default function OrdersPage() {
                 ))}
               </ul>
             )}
+
+            {receivingOpen && renderReceiving(o)}
           </Card>
         );
       })}
@@ -296,6 +433,25 @@ export default function OrdersPage() {
                     {!met && <p className="text-xs text-amber-700 mt-0.5">{t("minimumNotMet")}</p>}
                   </div>
                   <div className="flex gap-2 flex-wrap items-center">
+                    {isManager && (
+                      addTo === g.supplier.id ? (
+                        <span className="flex flex-wrap gap-2 items-center">
+                          <select className="touch-input h-10 w-auto text-sm" value={addForm.itemId} onChange={(e) => setAddForm({ ...addForm, itemId: e.target.value })}>
+                            <option value="">—</option>
+                            {inventory
+                              .filter((i: any) => i.supplierId === g.supplier.id && !g.items.some((it: any) => it.itemId === i.id))
+                              .map((i: any) => <option key={i.id} value={i.id}>{name(i)}</option>)}
+                          </select>
+                          <input className="touch-input h-10 w-20 text-center" type="number" placeholder={t("quantity")} value={addForm.qty} onChange={(e) => setAddForm({ ...addForm, qty: e.target.value })} />
+                          <button className="btn-primary text-sm" onClick={() => addManualProduct(g.supplier.id)} disabled={!addForm.itemId || !(Number(addForm.qty) > 0)}>{t("add")}</button>
+                          <button className="btn-ghost text-sm" onClick={() => { setAddTo(null); setAddForm({ itemId: "", qty: "" }); }}>{t("cancel")}</button>
+                        </span>
+                      ) : (
+                        <button className="btn-ghost text-sm" onClick={() => { setAddTo(g.supplier.id); setAddForm({ itemId: "", qty: "" }); }}>
+                          <Plus className="h-3.5 w-3.5" />{t("addProduct")}
+                        </button>
+                      )
+                    )}
                     {g.items.length > 0 && isManager && (
                       <>
                         <button className="btn-ghost text-sm" onClick={() => createMessage(g)}>{t("createMessage")}</button>

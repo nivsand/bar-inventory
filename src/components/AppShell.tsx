@@ -16,8 +16,8 @@ const NAV: { href: string; key: TKey; managerOnly?: boolean; adminOnly?: boolean
   { href: "/recipes", key: "recipes", managerOnly: true },
   { href: "/categories", key: "categories", managerOnly: true },
   { href: "/locations", key: "locations", managerOnly: true },
+  // Receiving goods lives inside the order workflow (/orders) — no separate page.
   { href: "/orders", key: "orders", managerOnly: true },
-  { href: "/deliveries", key: "deliveries" },
   { href: "/suppliers", key: "suppliers", managerOnly: true },
   { href: "/waste", key: "waste" },
   { href: "/reports", key: "reports", managerOnly: true },

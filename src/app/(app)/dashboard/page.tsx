@@ -37,12 +37,12 @@ export default function Dashboard() {
   );
 
   const Alerts = (
-    (c.lowStock || c.pendingDeliveries || c.pendingApprovals || c.overduePrep) ? (
+    (c.lowStock || c.pendingReceiving || c.pendingApprovals || c.overduePrep) ? (
       <Card className="tone-peach border-transparent">
         <h2 className="font-semibold mb-3 flex items-center gap-1.5"><AlertTriangle className="h-4 w-4" />{t("alerts")}</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
           {c.lowStock > 0 && <Link href="/inventory" className="rounded-xl bg-white/70 p-3 font-medium hover:bg-white transition-colors"><b className="text-lg">{c.lowStock}</b> · {t("lowStock")}</Link>}
-          {c.pendingDeliveries > 0 && <Link href="/deliveries" className="rounded-xl bg-white/70 p-3 font-medium hover:bg-white transition-colors"><b className="text-lg">{c.pendingDeliveries}</b> · {t("pendingReports")}</Link>}
+          {c.pendingReceiving > 0 && <Link href="/orders" className="rounded-xl bg-white/70 p-3 font-medium hover:bg-white transition-colors"><b className="text-lg">{c.pendingReceiving}</b> · {t("awaitingReceiving")}</Link>}
           {c.pendingApprovals > 0 && <Link href="/count" className="rounded-xl bg-white/70 p-3 font-medium hover:bg-white transition-colors"><b className="text-lg">{c.pendingApprovals}</b> · {t("pendingApprovals")}</Link>}
           {c.overduePrep > 0 && <Link href="/prep" className="rounded-xl bg-red-50 p-3 font-medium text-red-700 hover:bg-red-100 transition-colors"><b className="text-lg">{c.overduePrep}</b> · {t("overduePrep")}</Link>}
         </div>
@@ -70,7 +70,6 @@ export default function Dashboard() {
           <div className="grid grid-cols-2 gap-3">
             <ActionTile href="/count" labelKey="dailyCount" hint={countStatusText} />
             <ActionTile href="/prep" labelKey="prepTasks" hint={`${c.prepTasks}`} />
-            <ActionTile href="/deliveries" labelKey="reportReceived" />
             <ActionTile href="/waste" labelKey="wasteReport" />
           </div>
         </section>
@@ -94,19 +93,6 @@ export default function Dashboard() {
           )}
         </Card>
 
-        <Card>
-          <h2 className="font-semibold mb-2">{t("pendingReports")}</h2>
-          {data.pendingDeliveries.length === 0 ? <EmptyState label={t("noData")} /> : (
-            <ul className="divide-y divide-gray-100">
-              {data.pendingDeliveries.map((d: any) => (
-                <li key={d.id} className="py-2.5 flex justify-between items-center">
-                  <span>{d.receivedBy?.name} · {new Date(d.receivedAt).toLocaleDateString()}</span>
-                  <Badge tone="warn">{t("statusSubmitted")}</Badge>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
       </div>
     );
   }
@@ -122,7 +108,7 @@ export default function Dashboard() {
         <h2 className="font-semibold mb-2">{t("todaysActions")}</h2>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           <ActionTile href="/count" labelKey="approveCounts" hint={`${c.pendingApprovals}`} />
-          <ActionTile href="/deliveries" labelKey="approveReceived" hint={`${c.pendingDeliveries}`} />
+          <ActionTile href="/orders" labelKey="receiveGoods" hint={`${c.pendingReceiving}`} />
           <ActionTile href="/orders" labelKey="orders" hint={`${c.ordersDueToday} ${t("ordersDueToday")}`} />
           <ActionTile href="/prep" labelKey="prepPlanning" hint={`${c.prepTasks}`} />
           <ActionTile href="/inventory" labelKey="lowStock" hint={`${c.lowStock}`} />
@@ -167,14 +153,14 @@ export default function Dashboard() {
             </ul>
           </Card>
         )}
-        {data.pendingDeliveries.length > 0 && (
+        {data.pendingReceiving.length > 0 && (
           <Card>
-            <h2 className="font-semibold mb-2">{t("approveReceived")}</h2>
+            <h2 className="font-semibold mb-2">{t("awaitingReceiving")}</h2>
             <ul className="divide-y divide-gray-100">
-              {data.pendingDeliveries.map((d: any) => (
-                <li key={d.id} className="py-2.5 flex justify-between">
-                  <span>{d.receivedBy?.name} · {new Date(d.receivedAt).toLocaleDateString()}</span>
-                  <Link href="/deliveries" className="text-brand-600 font-medium">{t("review")}</Link>
+              {data.pendingReceiving.map((o: any) => (
+                <li key={o.id} className="py-2.5 flex justify-between">
+                  <span>{name(o.supplier)} · {new Date(o.sentAt || o.createdAt).toLocaleDateString()}</span>
+                  <Link href="/orders" className="text-brand-600 font-medium">{t("receiveGoods")}</Link>
                 </li>
               ))}
             </ul>

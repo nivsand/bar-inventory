@@ -34,7 +34,9 @@ async function GET__handler(req: Request, { params }: { params: { type: string }
         break;
       }
       case "supplier-performance": {
-        const d = await prisma.delivery.findMany({ include: { order: { include: { supplier: true } }, items: true } });
+        // Only receivings that were actually applied to stock count as a delivery
+        // (a DRAFT receiving is a review in progress, not a delivered order).
+        const d = await prisma.delivery.findMany({ where: { confirmed: true }, include: { order: { include: { supplier: true } }, items: true } });
         const map = new Map<string, { supplier: string; deliveries: number; shortages: number }>();
         for (const x of d) {
           const name = x.order?.supplier.nameEn || "—";
